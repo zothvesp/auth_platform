@@ -1,0 +1,2516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPSCTRL — System Administration Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-void: #08090b;
+  --bg-deep: #0c0e12;
+  --bg-surface: #12151a;
+  --bg-elevated: #1a1e25;
+  --bg-hover: #212630;
+  --bg-selected: #262c38;
+  --bg-zebra: rgba(255,255,255,0.015);
+  --border-subtle: #1e2229;
+  --border-medium: #2a3040;
+  --border-accent: #3a4458;
+  --text-primary: #e8ecf4;
+  --text-secondary: #8b95a8;
+  --text-muted: #556078;
+  --cyan: #00e5ff;
+  --cyan-dim: #00b8cc;
+  --cyan-weak: rgba(0, 229, 255, 0.08);
+  --cyan-focus: rgba(0, 229, 255, 0.4);
+  --amber: #ffb800;
+  --amber-weak: rgba(255, 184, 0, 0.08);
+  --mint: #00d68f;
+  --mint-weak: rgba(0, 214, 143, 0.08);
+  --coral: #ff3860;
+  --coral-weak: rgba(255, 56, 96, 0.08);
+  --purple: #a855f7;
+  --purple-weak: rgba(168, 85, 247, 0.08);
+  --font-display: 'Fraunces', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --space-1: 2px; --space-2: 4px; --space-3: 8px; --space-4: 12px;
+  --space-5: 16px; --space-6: 20px; --space-7: 24px; --space-8: 32px;
+  --space-9: 40px; --space-10: 48px;
+  --radius-sm: 3px; --radius-md: 5px; --radius-lg: 8px; --radius-xl: 12px;
+  --radius-full: 100%;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+  --shadow-glow-cyan: 0 0 20px rgba(0,229,255,0.2);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 100ms;
+  --duration-base: 200ms;
+  --duration-slow: 350ms;
+  --sidebar-width: 260px;
+  --topbar-height: 52px;
+  --form-header-height: 64px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-void);
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-accent); }
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.app-layout { display: flex; height: 100vh; position: relative; z-index: 1; }
+
+/* === SIDEBAR === */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-deep);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 0%, rgba(0,229,255,0.02), transparent 60%);
+  pointer-events: none;
+}
+.sidebar-brand {
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.brand-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-glow-cyan);
+  flex-shrink: 0;
+}
+.brand-icon svg { width: 16px; height: 16px; fill: var(--bg-void); }
+.brand-text { display: flex; flex-direction: column; }
+.brand-name { font-family: var(--font-mono); font-weight: 600; font-size: 12px; letter-spacing: 2px; }
+.brand-sub { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--text-muted); text-transform: uppercase; }
+
+.sidebar-nav { flex: 1; padding: var(--space-4) var(--space-3); overflow-y: auto; }
+.nav-section { margin-bottom: var(--space-2); }
+.nav-section-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); padding: var(--space-4) var(--space-4) var(--space-2); }
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 8px var(--space-4); border-radius: var(--radius-md);
+  cursor: pointer; transition: all var(--duration-fast) ease;
+  position: relative; color: var(--text-secondary);
+  font-size: 12.5px; font-weight: 400; text-decoration: none; margin-bottom: 1px;
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.nav-item.active { background: var(--bg-elevated); color: var(--cyan); }
+.nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 16px; background: var(--cyan);
+  border-radius: 0 2px 2px 0; box-shadow: 0 0 6px var(--cyan);
+}
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.65; }
+.nav-item.active svg { opacity: 1; }
+.nav-item .badge {
+  margin-left: auto; font-family: var(--font-mono); font-size: 9px;
+  padding: 1px 6px; border-radius: 8px; background: var(--bg-hover); color: var(--text-muted);
+}
+.nav-item.active .badge { background: var(--cyan-weak); color: var(--cyan); }
+
+.sidebar-footer { padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border-subtle); }
+.sidebar-user { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); cursor: pointer; transition: background var(--duration-fast) ease; }
+.sidebar-user:hover { background: var(--bg-hover); }
+.user-avatar {
+  width: 28px; height: 28px; border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--purple), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600; color: white; flex-shrink: 0;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-role { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); letter-spacing: 0.5px; }
+
+/* === MAIN === */
+.main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; position: relative; }
+
+.topbar {
+  height: var(--topbar-height); background: var(--bg-deep);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center; padding: 0 var(--space-7);
+  gap: var(--space-5); flex-shrink: 0;
+}
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); }
+.breadcrumb-item { color: var(--text-muted); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.5px; }
+.breadcrumb-sep { color: var(--text-muted); opacity: 0.35; }
+.breadcrumb-item.current { color: var(--text-secondary); }
+.breadcrumb-item.link { cursor: pointer; }
+.breadcrumb-item.link:hover { color: var(--cyan); }
+.topbar-spacer { flex: 1; }
+
+.search-box { position: relative; width: 260px; }
+.search-box input {
+  width: 100%; height: 32px; background: var(--bg-surface);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  padding: 0 var(--space-4) 0 32px; font-family: var(--font-mono);
+  font-size: 10.5px; color: var(--text-primary); outline: none;
+  transition: all var(--duration-base) ease;
+}
+.search-box input::placeholder { color: var(--text-muted); }
+.search-box input:focus { border-color: var(--cyan-dim); box-shadow: 0 0 0 1px var(--bg-deep), 0 0 0 3px var(--cyan-focus); }
+.search-box svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--text-muted); pointer-events: none; }
+
+.topbar-actions { display: flex; align-items: center; gap: var(--space-1); }
+.topbar-btn {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md); border: none; background: transparent;
+  color: var(--text-secondary); cursor: pointer;
+  transition: all var(--duration-fast) ease; position: relative;
+}
+.topbar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.topbar-btn svg { width: 15px; height: 15px; }
+.topbar-btn .notif-dot {
+  position: absolute; top: 5px; right: 6px; width: 6px; height: 6px;
+  background: var(--coral); border-radius: var(--radius-full); border: 1.5px solid var(--bg-deep);
+}
+
+/* === CLASSIFICATION === */
+.classification {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 2px 7px; border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 8px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+}
+.classification.restricted { background: var(--coral-weak); color: var(--coral); border: 1px solid rgba(255,56,96,0.2); }
+.classification.confidential { background: var(--amber-weak); color: var(--amber); border: 1px solid rgba(255,184,0,0.2); }
+.classification.internal { background: var(--cyan-weak); color: var(--cyan); border: 1px solid rgba(0,229,255,0.15); }
+.classification.public { background: var(--mint-weak); color: var(--mint); border: 1px solid rgba(0,214,143,0.15); }
+
+/* === PAGE CONTAINER === */
+.page-container { flex: 1; overflow-y: auto; position: relative; }
+
+.page-inner { padding: var(--space-7); }
+
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: var(--space-7);
+}
+.page-title {
+  font-family: var(--font-display); font-size: 26px; font-weight: 600;
+  letter-spacing: -0.5px; line-height: 1.2;
+}
+.page-subtitle { font-size: 12.5px; color: var(--text-secondary); margin-top: var(--space-1); }
+.page-actions { display: flex; gap: var(--space-3); align-items: center; }
+
+/* === BUTTONS === */
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 7px 13px; border-radius: var(--radius-md);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.3px; border: 1px solid transparent;
+  cursor: pointer; transition: all var(--duration-fast) ease;
+  white-space: nowrap; text-decoration: none; position: relative;
+}
+.btn svg { width: 13px; height: 13px; }
+.btn-primary { background: var(--cyan); color: var(--bg-void); border-color: var(--cyan); box-shadow: var(--shadow-glow-cyan); }
+.btn-primary:hover { background: var(--cyan-dim); box-shadow: 0 0 20px rgba(0,229,255,0.3); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-secondary { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border-medium); }
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-accent); }
+.btn-danger { background: transparent; color: var(--coral); border-color: rgba(255,56,96,0.3); }
+.btn-danger:hover { background: var(--coral-weak); border-color: var(--coral); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: none; padding: 5px 9px; }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-sm { padding: 4px 9px; font-size: 9px; }
+.btn:disabled { opacity: 0.45; cursor: default; pointer-events: none; }
+
+.btn-icon {
+  width: 28px; height: 28px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); background: transparent;
+  border: 1px solid transparent; color: var(--text-muted);
+  cursor: pointer; transition: all var(--duration-fast) ease;
+}
+.btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-medium); }
+.btn-icon svg { width: 13px; height: 13px; }
+
+/* === ALERT === */
+.alert-box {
+  display: flex; align-items: flex-start; gap: var(--space-4);
+  padding: var(--space-5); border-radius: var(--radius-md);
+  margin-bottom: var(--space-6); border: 1px solid;
+}
+.alert-box.info { background: var(--cyan-weak); border-color: rgba(0,229,255,0.2); color: var(--cyan); }
+.alert-box.warning { background: var(--amber-weak); border-color: rgba(255,184,0,0.2); color: var(--amber); }
+.alert-box.error { background: var(--coral-weak); border-color: rgba(255,56,96,0.2); color: var(--coral); }
+.alert-box.success { background: var(--mint-weak); border-color: rgba(0,214,143,0.2); color: var(--mint); }
+.alert-box svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+.alert-box-content { flex: 1; }
+.alert-box-title { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; margin-bottom: 1px; }
+.alert-box-desc { font-size: 12.5px; opacity: 0.9; }
+
+/* === STATS === */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4); margin-bottom: var(--space-7);
+}
+.stat-card {
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6);
+  position: relative; overflow: hidden;
+  transition: border-color var(--duration-base) ease;
+}
+.stat-card:hover { border-color: var(--border-medium); }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--border-medium); }
+.stat-card.highlight::before { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.stat-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: var(--space-3); }
+.stat-value { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1; }
+.stat-change { font-family: var(--font-mono); font-size: 9px; margin-top: var(--space-2); display: flex; align-items: center; gap: var(--space-1); }
+.stat-change.positive { color: var(--mint); }
+.stat-change.negative { color: var(--coral); }
+
+/* === TABS === */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border-medium); margin-bottom: var(--space-6); }
+.tab {
+  padding: 9px var(--space-5); font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.5px; color: var(--text-muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: all var(--duration-fast) ease; user-select: none;
+}
+.tab:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+.tab .tab-badge {
+  display: inline-flex; margin-left: var(--space-2);
+  padding: 0 5px; border-radius: 8px; background: var(--bg-hover);
+  font-size: 9px; color: var(--text-muted); line-height: 16px;
+}
+.tab.active .tab-badge { background: var(--cyan-weak); color: var(--cyan); }
+
+/* === TABLE === */
+.table-container { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; }
+.table-toolbar { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-subtle); gap: var(--space-4); }
+.table-search { position: relative; }
+.table-search input {
+  height: 28px; width: 200px; background: var(--bg-deep);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+  padding: 0 var(--space-3) 0 28px; font-family: var(--font-mono);
+  font-size: 10.5px; color: var(--text-primary); outline: none;
+  transition: all var(--duration-fast) ease;
+}
+.table-search input:focus { border-color: var(--cyan-dim); box-shadow: 0 0 0 1px var(--bg-deep), 0 0 0 3px var(--cyan-focus); }
+.table-search svg { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; color: var(--text-muted); pointer-events: none; }
+.table-filters { display: flex; gap: var(--space-2); }
+.data-table { width: 100%; border-collapse: collapse; }
+
+.data-table th {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 500;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted);
+  padding: 9px var(--space-5); text-align: left;
+  border-bottom: 1px solid var(--border-medium); background: var(--bg-deep);
+  position: sticky; top: 0; z-index: 10; white-space: nowrap;
+}
+.data-table td { padding: 10px var(--space-5); border-bottom: 1px solid var(--border-subtle); font-size: 12.5px; vertical-align: middle; transition: background var(--duration-fast) ease; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr:nth-child(even) td { background: var(--bg-zebra); }
+.data-table tbody tr:hover td { background: var(--bg-hover) !important; }
+.data-table tbody tr:focus-within td { background: var(--bg-selected) !important; box-shadow: inset 3px 0 0 var(--cyan); }
+.data-table tr.deleted td { opacity: 0.5; text-decoration: line-through; text-decoration-color: var(--text-muted); }
+.data-table tr.deleted:hover td { opacity: 0.7; }
+
+.table-cell-user { display: flex; align-items: center; gap: var(--space-3); }
+.table-avatar {
+  width: 26px; height: 26px; border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600; color: white; flex-shrink: 0;
+}
+.table-cell-main { font-weight: 500; }
+.table-cell-sub { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); margin-top: 1px; }
+
+.status-badge { display: inline-flex; align-items: center; gap: var(--space-2); padding: 2px 7px; border-radius: 10px; font-family: var(--font-mono); font-size: 9px; font-weight: 500; }
+.status-badge .dot { width: 5px; height: 5px; border-radius: var(--radius-full); }
+.status-badge.active { background: var(--mint-weak); color: var(--mint); }
+.status-badge.active .dot { background: var(--mint); box-shadow: 0 0 4px var(--mint); }
+.status-badge.inactive { background: rgba(85,96,120,0.12); color: var(--text-muted); }
+.status-badge.inactive .dot { background: var(--text-muted); }
+.status-badge.suspended { background: var(--amber-weak); color: var(--amber); }
+.status-badge.suspended .dot { background: var(--amber); box-shadow: 0 0 4px var(--amber); }
+.status-badge.deleted { background: var(--coral-weak); color: var(--coral); }
+.status-badge.deleted .dot { background: var(--coral); }
+
+.table-actions { display: flex; gap: 1px; justify-content: flex-end; }
+
+.table-footer { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-subtle); }
+.table-info { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+.pagination { display: flex; gap: 1px; }
+.page-btn {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); background: transparent; border: 1px solid transparent;
+  color: var(--text-muted); font-family: var(--font-mono); font-size: 10.5px;
+  cursor: pointer; transition: all var(--duration-fast) ease;
+}
+.page-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.page-btn.active { background: var(--cyan-weak); color: var(--cyan); border-color: rgba(0,229,255,0.3); }
+
+/* === TAGS === */
+.role-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 1px 6px; border-radius: var(--radius-sm);
+  background: var(--cyan-weak); color: var(--cyan);
+  border: 1px solid rgba(0,229,255,0.2);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 500;
+  margin: 1px;
+}
+.role-chip-more {
+  display: inline-flex; align-items: center;
+  padding: 1px 6px; border-radius: var(--radius-sm);
+  background: var(--bg-hover); color: var(--text-muted);
+  font-family: var(--font-mono); font-size: 9px;
+  margin: 1px;
+}
+.perm-tag {
+  display: inline-flex; align-items: center; padding: 1px 5px;
+  border-radius: var(--radius-sm); font-family: var(--font-mono);
+  font-size: 9px; font-weight: 500; letter-spacing: 0.3px;
+  background: var(--bg-hover); color: var(--text-secondary); margin: 1px;
+}
+.scope-tag {
+  font-family: var(--font-mono); font-size: 9px; padding: 1px 5px;
+  border-radius: var(--radius-sm); background: var(--purple-weak);
+  color: var(--purple); border: 1px solid rgba(168,85,247,0.2);
+}
+.scope-tags { display: flex; flex-wrap: wrap; gap: 2px; }
+
+/* === EMPTY STATE === */
+.empty-state { text-align: center; padding: var(--space-10) var(--space-7); color: var(--text-muted); }
+.empty-state svg { width: 40px; height: 40px; margin-bottom: var(--space-4); opacity: 0.25; }
+.empty-state-title { font-family: var(--font-display); font-size: 16px; color: var(--text-secondary); margin-bottom: var(--space-1); }
+.empty-state-desc { font-size: 12px; }
+
+/* === AUDIT LOG === */
+.audit-timeline { position: relative; padding-left: var(--space-6); }
+.audit-timeline::before { content: ''; position: absolute; left: 5px; top: 0; bottom: 0; width: 1px; background: var(--border-subtle); }
+.audit-entry { position: relative; padding: var(--space-3) 0 var(--space-3) var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+.audit-entry:last-child { border-bottom: none; }
+.audit-entry::before {
+  content: ''; position: absolute; left: -15px; top: 12px;
+  width: 7px; height: 7px; border-radius: var(--radius-full);
+  background: var(--border-accent); border: 2px solid var(--bg-surface);
+}
+.audit-entry.create::before { background: var(--mint); box-shadow: 0 0 5px var(--mint); }
+.audit-entry.update::before { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+.audit-entry.delete::before { background: var(--coral); box-shadow: 0 0 5px var(--coral); }
+.audit-entry.login::before { background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+.audit-header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-1); flex-wrap: wrap; }
+.audit-action { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+.audit-action.create { color: var(--mint); }
+.audit-action.update { color: var(--amber); }
+.audit-action.delete { color: var(--coral); }
+.audit-action.login { color: var(--cyan); }
+.audit-target { font-size: 12.5px; font-weight: 500; }
+.audit-meta { display: flex; align-items: center; gap: var(--space-4); font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+.audit-details {
+  margin-top: var(--space-2); padding: var(--space-2) var(--space-3);
+  background: var(--bg-deep); border-radius: var(--radius-sm);
+  border-left: 2px solid var(--border-medium);
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary);
+}
+
+/* === TOAST === */
+.toast-container { position: fixed; bottom: var(--space-6); right: var(--space-6); z-index: 2000; display: flex; flex-direction: column; gap: var(--space-3); }
+.toast {
+  background: var(--bg-elevated); border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md); padding: var(--space-4) var(--space-5);
+  display: flex; align-items: center; gap: var(--space-3);
+  box-shadow: var(--shadow-lg); min-width: 260px;
+  animation: toastIn 0.3s var(--ease-out);
+}
+.toast.removing { animation: toastOut 0.3s ease forwards; }
+.toast-icon { width: 16px; height: 16px; flex-shrink: 0; }
+.toast.success .toast-icon { color: var(--mint); }
+.toast.error .toast-icon { color: var(--coral); }
+.toast.warning .toast-icon { color: var(--amber); }
+.toast.info .toast-icon { color: var(--cyan); }
+.toast-message { font-size: 12.5px; }
+@keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+/* =============================================================
+ * FORM PAGE (full page create/edit — NO POPUPS, NO PANELS)
+ * ============================================================= */
+.form-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  animation: fadeIn var(--duration-slow) var(--ease-out);
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-7);
+  background: var(--bg-deep);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: var(--form-header-height);
+}
+.form-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  flex: 1;
+}
+.form-back {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  flex-shrink: 0;
+}
+.form-back:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-accent); }
+.form-back svg { width: 16px; height: 16px; }
+
+.form-title-group { min-width: 0; }
+.form-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+.form-subtitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+.form-header-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-align: right;
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--border-subtle);
+}
+.form-header-meta strong {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  margin-bottom: 1px;
+}
+
+.form-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-7);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-6);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.form-main, .form-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (max-width: 1100px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+}
+.form-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--border-medium);
+}
+.form-card.accent-cyan::before { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.form-card.accent-purple::before { background: var(--purple); box-shadow: 0 0 8px rgba(168,85,247,0.3); }
+.form-card.accent-amber::before { background: var(--amber); box-shadow: 0 0 8px rgba(255,184,0,0.3); }
+.form-card.accent-mint::before { background: var(--mint); box-shadow: 0 0 8px rgba(0,214,143,0.3); }
+
+.form-card-header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.form-card-title-group { min-width: 0; }
+.form-card-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.form-card-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.form-card-body {
+  padding: var(--space-6);
+}
+
+.form-section {
+  margin-bottom: var(--space-6);
+}
+.form-section:last-child { margin-bottom: 0; }
+
+.form-section-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.form-section-title .label-hint {
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10px;
+}
+
+/* === FORM ELEMENTS === */
+.form-group { margin-bottom: var(--space-5); }
+.form-group:last-child { margin-bottom: 0; }
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+.form-label .required { color: var(--coral); }
+
+.form-input, .form-select, .form-textarea {
+  width: 100%; height: 36px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-4);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--text-primary);
+  outline: none;
+  transition: all var(--duration-base) ease;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--cyan-dim);
+  box-shadow: 0 0 0 1px var(--bg-deep), 0 0 0 3px var(--cyan-focus);
+}
+.form-input:disabled, .form-select:disabled, .form-textarea:disabled {
+  opacity: 0.6; cursor: default; background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+.form-textarea { height: 80px; padding: var(--space-3) var(--space-4); resize: vertical; }
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b95a8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  padding-right: 30px; cursor: pointer;
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.form-helper { font-size: 10px; color: var(--text-muted); margin-top: var(--space-2); font-family: var(--font-mono); }
+.form-error { font-size: 10px; color: var(--coral); margin-top: var(--space-2); font-family: var(--font-mono); }
+
+/* === TAG SELECT (for roles) === */
+.tag-select {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-height: 42px;
+  padding: var(--space-2);
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  align-items: center;
+  cursor: pointer;
+  transition: all var(--duration-base) ease;
+  position: relative;
+}
+.tag-select:focus-within, .tag-select.active {
+  border-color: var(--cyan-dim);
+  box-shadow: 0 0 0 1px var(--bg-deep), 0 0 0 3px var(--cyan-focus);
+}
+.tag-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 4px 4px 4px 10px;
+  background: var(--cyan-weak);
+  border: 1px solid rgba(0,229,255,0.25);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--cyan); font-weight: 500;
+  max-width: 100%;
+}
+.tag-chip-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag-chip-remove {
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  background: transparent; border: none;
+  color: var(--cyan); cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  flex-shrink: 0;
+}
+.tag-chip-remove:hover { background: rgba(0,229,255,0.15); color: var(--text-primary); }
+.tag-chip-remove svg { width: 11px; height: 11px; }
+
+.tag-select-input {
+  flex: 1; min-width: 100px; height: 28px;
+  background: transparent; border: none; outline: none;
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--text-primary); padding: 0 var(--space-2);
+  cursor: pointer;
+}
+.tag-select-input::placeholder { color: var(--text-muted); }
+.tag-select-empty { color: var(--text-muted); font-size: 12.5px; padding: 0 var(--space-2); }
+
+/* === DROPDOWN === */
+.dropdown-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 280px; overflow-y: auto;
+  z-index: 100;
+  opacity: 0; visibility: hidden;
+  transform: translateY(-4px);
+  transition: all var(--duration-base) ease;
+}
+.dropdown-menu.active { opacity: 1; visibility: visible; transform: translateY(0); }
+
+.dropdown-search {
+  position: sticky; top: 0;
+  background: var(--bg-elevated);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 1;
+}
+.dropdown-search input {
+  width: 100%; height: 30px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3) 0 28px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-primary);
+  outline: none;
+}
+.dropdown-search input:focus { border-color: var(--cyan-dim); }
+.dropdown-search svg { position: absolute; left: 17px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; color: var(--text-muted); pointer-events: none; }
+.dropdown-list { padding: var(--space-2); }
+.dropdown-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+}
+.dropdown-item:hover { background: var(--bg-hover); }
+.dropdown-item-checkbox {
+  width: 14px; height: 14px; accent-color: var(--cyan);
+  flex-shrink: 0; cursor: pointer;
+}
+.dropdown-item-content { flex: 1; min-width: 0; }
+.dropdown-item-title { font-size: 12px; font-weight: 500; }
+.dropdown-item-sub { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dropdown-empty { padding: var(--space-6); text-align: center; color: var(--text-muted); font-size: 11px; }
+
+/* === SCOPE GROUPS (Permissions) === */
+.scope-groups {
+  display: flex; flex-direction: column; gap: var(--space-3);
+}
+.scope-group {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color var(--duration-base) ease;
+}
+.scope-group:hover { border-color: var(--border-medium); }
+.scope-group.expanded { border-color: var(--border-accent); }
+
+.scope-group-header {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--duration-fast) ease;
+}
+.scope-group-header:hover { background: var(--bg-hover); }
+
+.scope-group-chevron {
+  width: 16px; height: 16px; color: var(--text-muted);
+  transition: transform var(--duration-base) var(--ease-out);
+  flex-shrink: 0;
+}
+.scope-group.expanded .scope-group-chevron { transform: rotate(90deg); color: var(--cyan); }
+
+.scope-group-title {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-secondary);
+  flex: 1;
+}
+.scope-group.expanded .scope-group-title { color: var(--cyan); }
+
+.scope-group-count {
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 1px 7px; border-radius: 8px;
+  background: var(--bg-hover); color: var(--text-muted);
+  flex-shrink: 0;
+}
+.scope-group.expanded .scope-group-count { background: var(--cyan-weak); color: var(--cyan); }
+
+.scope-group-select-all {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-muted);
+  padding: 2px var(--space-2); border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.scope-group-select-all:hover { background: var(--bg-hover); color: var(--text-primary); }
+.scope-group-select-all input { width: 12px; height: 12px; accent-color: var(--cyan); cursor: pointer; }
+
+.scope-group-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--duration-slow) var(--ease-out);
+}
+.scope-group.expanded .scope-group-body { max-height: 1200px; }
+
+.scope-group-list {
+  padding: var(--space-2);
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-1);
+}
+@media (max-width: 700px) {
+  .scope-group-list { grid-template-columns: 1fr; }
+}
+
+.perm-checkbox-item {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+}
+.perm-checkbox-item:hover { background: var(--bg-hover); }
+.perm-checkbox-item input[type="checkbox"] {
+  width: 14px; height: 14px; accent-color: var(--cyan);
+  margin-top: 2px; flex-shrink: 0; cursor: pointer;
+}
+.perm-checkbox-content { flex: 1; min-width: 0; }
+.perm-checkbox-name { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-primary); }
+.perm-checkbox-desc { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+
+/* === METADATA LIST (sidebar cards) === */
+.meta-list {
+  display: flex; flex-direction: column;
+}
+.meta-item {
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.meta-item:last-child { border-bottom: none; }
+.meta-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.meta-value {
+  font-size: 12.5px;
+  color: var(--text-primary);
+  font-weight: 500;
+  word-break: break-word;
+}
+.meta-value.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* === DANGER ZONE === */
+.danger-zone {
+  background: var(--bg-surface);
+  border: 1px solid rgba(255,56,96,0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+.danger-zone-info { min-width: 0; }
+.danger-zone-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--coral);
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.danger-zone-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* === AVATAR COLORS === */
+.avatar-c1 { background: linear-gradient(135deg, #ff6b6b, #ee5a24); }
+.avatar-c2 { background: linear-gradient(135deg, #48dbfb, #0abde3); }
+.avatar-c3 { background: linear-gradient(135deg, #feca57, #ff9f43); }
+.avatar-c4 { background: linear-gradient(135deg, #ff9ff3, #f368e0); }
+.avatar-c5 { background: linear-gradient(135deg, #55efc4, #00b894); }
+.avatar-c6 { background: linear-gradient(135deg, #a29bfe, #6c5ce7); }
+.avatar-c7 { background: linear-gradient(135deg, #fd79a8, #e84393); }
+.avatar-c8 { background: linear-gradient(135deg, #74b9ff, #0984e3); }
+
+/* === PAGE TRANSITIONS === */
+.page-content { animation: fadeIn var(--duration-slow) var(--ease-out); }
+
+/* === RESPONSIVE === */
+@media (max-width: 1024px) {
+  .sidebar { width: 64px; }
+  .sidebar .brand-text, .sidebar .nav-item span:not(.badge), .sidebar .nav-section-label, .sidebar-footer .user-info { display: none; }
+  .sidebar-brand { justify-content: center; padding: var(--space-5) var(--space-3); }
+  .nav-item { justify-content: center; padding: var(--space-3); }
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">OPSCTRL</span>
+        <span class="brand-sub">Admin Console</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar">SA</div>
+        <div class="user-info">
+          <div class="user-name">Sarah Admin</div>
+          <div class="user-role">SUPER_ADMIN</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="topbar-spacer"></div>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search everything… ⌘K" id="globalSearch">
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-btn" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-dot"></span>
+        </button>
+      </div>
+    </header>
+    <div class="page-container" id="pageContainer"></div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// =====================================================
+// STATE
+// =====================================================
+const State = {
+  currentPage: 'dashboard',
+  currentTab: 'data',
+  searchQuery: '',
+  // Form page mode: null or { type: 'user'|'role'|'perm'|'oauth', id: null|'...' }
+  formMode: null,
+  data: {
+    users: [
+      { id: 'usr_001', name: 'Elena Vasquez', email: 'elena.v@company.com', roles: ['role_001', 'role_005'], status: 'active', classification: 'restricted', createdAt: '2025-11-15T10:30:00Z', lastLogin: '2026-06-06T08:12:00Z', deletedAt: null },
+      { id: 'usr_002', name: 'Marcus Chen', email: 'marcus.c@company.com', roles: ['role_002'], status: 'active', classification: 'internal', createdAt: '2025-12-03T14:22:00Z', lastLogin: '2026-06-05T16:45:00Z', deletedAt: null },
+      { id: 'usr_003', name: 'Priya Sharma', email: 'priya.s@company.com', roles: ['role_003'], status: 'active', classification: 'internal', createdAt: '2026-01-08T09:15:00Z', lastLogin: '2026-06-04T11:30:00Z', deletedAt: null },
+      { id: 'usr_004', name: "James O'Brien", email: 'james.ob@company.com', roles: ['role_002', 'role_004'], status: 'suspended', classification: 'internal', createdAt: '2026-01-22T11:00:00Z', lastLogin: '2026-05-28T09:00:00Z', deletedAt: null },
+      { id: 'usr_005', name: 'Aiko Tanaka', email: 'aiko.t@company.com', roles: ['role_001'], status: 'active', classification: 'restricted', createdAt: '2026-02-14T08:30:00Z', lastLogin: '2026-06-06T07:00:00Z', deletedAt: null },
+      { id: 'usr_006', name: 'David Kim', email: 'david.k@company.com', roles: ['role_003'], status: 'inactive', classification: 'public', createdAt: '2026-03-01T13:45:00Z', lastLogin: '2026-04-15T10:00:00Z', deletedAt: null },
+      { id: 'usr_007', name: 'Olivia Foster', email: 'olivia.f@company.com', roles: ['role_002'], status: 'active', classification: 'internal', createdAt: '2026-03-19T16:20:00Z', lastLogin: '2026-06-05T14:30:00Z', deletedAt: '2026-06-01T10:00:00Z' },
+      { id: 'usr_008', name: 'Rafael Moreno', email: 'rafael.m@company.com', roles: ['role_003', 'role_004'], status: 'active', classification: 'public', createdAt: '2026-04-02T10:10:00Z', lastLogin: '2026-06-03T18:20:00Z', deletedAt: null },
+    ],
+    roles: [
+      { id: 'role_001', name: 'Super Admin', slug: 'super_admin', description: 'Full system access with all permissions', permissions: ['perm_001','perm_002','perm_003','perm_004','perm_005','perm_006','perm_007','perm_008','perm_009','perm_010'], classification: 'restricted', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'role_002', name: 'Content Editor', slug: 'editor', description: 'Can create and modify content but not system settings', permissions: ['perm_001','perm_002','perm_004'], classification: 'internal', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'role_003', name: 'Viewer', slug: 'viewer', description: 'Read-only access to public and internal content', permissions: ['perm_001'], classification: 'public', createdAt: '2025-10-15T00:00:00Z', deletedAt: null },
+      { id: 'role_004', name: 'API Consumer', slug: 'api_consumer', description: 'Programmatic access with limited scopes', permissions: ['perm_005','perm_006'], classification: 'confidential', createdAt: '2025-11-01T00:00:00Z', deletedAt: null },
+      { id: 'role_005', name: 'Auditor', slug: 'auditor', description: 'Read access to audit logs and compliance reports', permissions: ['perm_008','perm_010'], classification: 'confidential', createdAt: '2026-01-10T00:00:00Z', deletedAt: null },
+    ],
+    permissions: [
+      { id: 'perm_001', name: 'read', displayName: 'Read Access', description: 'View resources and content', scope: 'global', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_002', name: 'write', displayName: 'Write Access', description: 'Create and modify resources', scope: 'global', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_003', name: 'delete', displayName: 'Delete Access', description: 'Remove resources permanently', scope: 'global', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_004', name: 'publish', displayName: 'Publish Content', description: 'Make content publicly visible', scope: 'content', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_005', name: 'api_read', displayName: 'API Read', description: 'Read data via API endpoints', scope: 'api', createdAt: '2025-11-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_006', name: 'api_write', displayName: 'API Write', description: 'Modify data via API endpoints', scope: 'api', createdAt: '2025-11-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_007', name: 'admin_panel', displayName: 'Admin Panel', description: 'Access the administration interface', scope: 'system', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_008', name: 'audit_read', displayName: 'View Audit Logs', description: 'Access system audit trail', scope: 'system', createdAt: '2025-12-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_009', name: 'user_manage', displayName: 'Manage Users', description: 'Create, edit and delete user accounts', scope: 'system', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_010', name: 'report_view', displayName: 'View Reports', description: 'Access analytics and compliance reports', scope: 'analytics', createdAt: '2026-01-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_011', name: 'settings_edit', displayName: 'Edit Settings', description: 'Modify system configuration', scope: 'system', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+      { id: 'perm_012', name: 'oauth_manage', displayName: 'Manage OAuth Apps', description: 'Register and configure OAuth applications', scope: 'system', createdAt: '2025-10-01T00:00:00Z', deletedAt: null },
+    ],
+    oauthApps: [
+      { id: 'oauth_001', name: 'Mobile App iOS', clientId: 'cli_ios_7f8a9b2c', redirectUris: ['myapp://callback'], scopes: ['read', 'write', 'profile'], status: 'active', classification: 'confidential', createdAt: '2025-12-01T00:00:00Z', deletedAt: null },
+      { id: 'oauth_002', name: 'Web Dashboard', clientId: 'cli_web_3d4e5f6g', redirectUris: ['https://dashboard.company.com/auth/callback'], scopes: ['read', 'write', 'admin'], status: 'active', classification: 'restricted', createdAt: '2025-11-15T00:00:00Z', deletedAt: null },
+      { id: 'oauth_003', name: 'Partner Integration', clientId: 'cli_partner_a1b2c3', redirectUris: ['https://partner.example.com/oauth'], scopes: ['read'], status: 'active', classification: 'internal', createdAt: '2026-02-10T00:00:00Z', deletedAt: null },
+    ],
+    settings: {
+      general: { siteName: 'OPSCTRL Platform', supportEmail: 'support@company.com', timezone: 'UTC' },
+      security: { mfaRequired: true, sessionTimeout: 3600, passwordMinLength: 12 },
+      notifications: { emailAlerts: true, loginAlerts: true, auditDigest: 'weekly' }
+    }
+  },
+  auditLogs: [
+    { id: 'log_001', section: 'users', action: 'create', target: 'Elena Vasquez', actor: 'System', timestamp: '2025-11-15T10:30:00Z', details: 'User account created', ip: '10.0.1.15' },
+    { id: 'log_002', section: 'users', action: 'create', target: 'Marcus Chen', actor: 'Sarah Admin', timestamp: '2025-12-03T14:22:00Z', details: 'User account created', ip: '10.0.1.15' },
+    { id: 'log_003', section: 'roles', action: 'create', target: 'Super Admin', actor: 'System', timestamp: '2025-10-01T00:00:00Z', details: 'Default role initialized', ip: '127.0.0.1' },
+    { id: 'log_004', section: 'users', action: 'update', target: "James O'Brien", actor: 'Elena Vasquez', timestamp: '2026-05-28T09:05:00Z', details: 'Status: active → suspended', ip: '10.0.1.22' },
+    { id: 'log_005', section: 'users', action: 'delete', target: 'Olivia Foster', actor: 'Sarah Admin', timestamp: '2026-06-01T10:00:00Z', details: 'User soft-deleted', ip: '10.0.1.15' },
+    { id: 'log_006', section: 'users', action: 'login', target: 'Aiko Tanaka', actor: 'Aiko Tanaka', timestamp: '2026-06-06T07:00:00Z', details: 'Login from new device', ip: '192.168.1.105' },
+  ]
+};
+
+// =====================================================
+// UTILITIES
+// =====================================================
+const genId = (p) => `${p}_${Math.random().toString(36).substr(2, 8)}`;
+const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const fmtDateTime = (d) => {
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+};
+const timeAgo = (d) => {
+  const now = new Date('2026-06-06T12:00:00Z');
+  const diff = (now - new Date(d)) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff/86400)}d ago`;
+  return fmtDate(d);
+};
+const initials = (n) => n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+const avatarCls = (id) => `avatar-c${(parseInt(id.replace(/\D/g,'')) || 0) % 8 + 1}`;
+const addLog = (section, action, target, details = '') => {
+  State.auditLogs.unshift({
+    id: genId('log'), section, action, target,
+    actor: 'Sarah Admin', timestamp: new Date().toISOString(), details, ip: '10.0.1.15'
+  });
+};
+const getUserCountForRole = (roleId) => State.data.users.filter(u => !u.deletedAt && u.roles.includes(roleId)).length;
+const getRoleName = (roleId) => State.data.roles.find(r => r.id === roleId)?.name || 'Unknown';
+const getPermName = (permId) => State.data.permissions.find(p => p.id === permId)?.displayName || 'Unknown';
+
+// =====================================================
+// TOAST
+// =====================================================
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toastContainer');
+  const icons = {
+    success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span class="toast-icon">${icons[type]}</span><span class="toast-message">${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.classList.add('removing'); setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+// =====================================================
+// NAV
+// =====================================================
+const navItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', section: 'OVERVIEW' },
+  { id: 'users', label: 'Users', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', section: 'IDENTITY' },
+  { id: 'roles', label: 'Roles', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', section: 'IDENTITY' },
+  { id: 'permissions', label: 'Permissions', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>', section: 'IDENTITY' },
+  { id: 'oauth', label: 'OAuth Apps', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>', section: 'INTEGRATIONS' },
+  { id: 'settings', label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 9 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', section: 'SYSTEM' },
+  { id: 'audit', label: 'Audit Logs', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>', section: 'SYSTEM' },
+];
+
+function renderNav() {
+  const nav = document.getElementById('sidebarNav');
+  let html = '', sec = '';
+  navItems.forEach(item => {
+    if (item.section !== sec) { sec = item.section; html += `<div class="nav-section"><div class="nav-section-label">${sec}</div>`; }
+    const badge = item.id === 'users' ? State.data.users.filter(u => !u.deletedAt).length :
+                  item.id === 'roles' ? State.data.roles.filter(r => !r.deletedAt).length :
+                  item.id === 'oauth' ? State.data.oauthApps.filter(o => !o.deletedAt).length : '';
+    html += `<a class="nav-item ${State.currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')">${item.icon}<span>${item.label}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</a>`;
+  });
+  nav.innerHTML = html;
+}
+
+function navigateTo(page) {
+  State.currentPage = page;
+  State.currentTab = 'data';
+  State.searchQuery = '';
+  State.formMode = null;
+  renderNav();
+  render();
+}
+
+// Open a form page (full page, not a popup)
+function openForm(type, id = null) {
+  State.formMode = { type, id };
+  render();
+  // Scroll to top of form
+  document.getElementById('pageContainer').scrollTop = 0;
+}
+
+function closeForm() {
+  State.formMode = null;
+  render();
+}
+
+// =====================================================
+// BREADCRUMB
+// =====================================================
+function renderBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  const pageLabel = navItems.find(n => n.id === State.currentPage)?.label || 'Dashboard';
+
+  if (State.formMode) {
+    const { type, id } = State.formMode;
+    const isNew = !id;
+    let entityName = '';
+    if (type === 'user') entityName = isNew ? 'New User' : State.data.users.find(u => u.id === id)?.name;
+    else if (type === 'role') entityName = isNew ? 'New Role' : State.data.roles.find(r => r.id === id)?.name;
+    else if (type === 'perm') entityName = isNew ? 'New Permission' : State.data.permissions.find(p => p.id === id)?.displayName;
+    else if (type === 'oauth') entityName = isNew ? 'New OAuth App' : State.data.oauthApps.find(o => o.id === id)?.name;
+
+    bc.innerHTML = `
+      <span class="breadcrumb-item">OPSCTRL</span>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-item link" onclick="closeForm()">${pageLabel}</span>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-item current">${entityName || (isNew ? 'Create' : 'Edit')}</span>
+    `;
+  } else {
+    bc.innerHTML = `
+      <span class="breadcrumb-item">OPSCTRL</span>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-item current">${pageLabel}</span>
+    `;
+  }
+}
+
+// =====================================================
+// MAIN RENDER
+// =====================================================
+function render() {
+  renderBreadcrumb();
+  const c = document.getElementById('pageContainer');
+
+  if (State.formMode) {
+    const { type, id } = State.formMode;
+    if (type === 'user') c.innerHTML = renderUserFormPage(id);
+    else if (type === 'role') c.innerHTML = renderRoleFormPage(id);
+    else if (type === 'perm') c.innerHTML = renderPermFormPage(id);
+    else if (type === 'oauth') c.innerHTML = renderOAuthFormPage(id);
+    // Re-initialize interactive components
+    setTimeout(() => {
+      initTagSelect();
+      initScopeGroups();
+    }, 30);
+    return;
+  }
+
+  const fn = { dashboard: renderDashboard, users: renderUsers, roles: renderRoles, permissions: renderPerms, oauth: renderOAuth, settings: renderSettings, audit: renderAudit };
+  c.innerHTML = (fn[State.currentPage] || renderDashboard)();
+}
+
+// =====================================================
+// DASHBOARD
+// =====================================================
+function renderDashboard() {
+  const au = State.data.users.filter(u => !u.deletedAt && u.status === 'active').length;
+  const tr = State.data.roles.filter(r => !r.deletedAt).length;
+  const rl = State.auditLogs.slice(0, 5);
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">Operations Overview</h1><p class="page-subtitle">System status — ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}</p></div>
+      <div class="page-actions"><span class="classification internal">INTERNAL</span></div>
+    </div>
+    <div class="alert-box info">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div class="alert-box-content"><div class="alert-box-title">Scheduled Maintenance</div><div class="alert-box-desc">Database optimization Sunday 02:00 UTC. Brief latency expected.</div></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card highlight"><div class="stat-label">Active Users</div><div class="stat-value">${au}</div><div class="stat-change positive">↑ 3 this week</div></div>
+      <div class="stat-card"><div class="stat-label">Total Roles</div><div class="stat-value">${tr}</div><div class="stat-change positive">↑ 1 this month</div></div>
+      <div class="stat-card"><div class="stat-label">Permissions</div><div class="stat-value">${State.data.permissions.filter(p=>!p.deletedAt).length}</div><div class="stat-change positive">All nominal</div></div>
+      <div class="stat-card"><div class="stat-label">Audit Events</div><div class="stat-value">${State.auditLogs.length}</div><div class="stat-change positive">No anomalies</div></div>
+    </div>
+    <h3 style="font-family:var(--font-display);font-size:16px;margin-bottom:var(--space-4)">Recent Activity</h3>
+    <div class="table-container" style="padding:var(--space-5)">
+      <div class="audit-timeline">
+        ${rl.map(l => `<div class="audit-entry ${l.action}"><div class="audit-header"><span class="audit-action ${l.action}">${l.action.toUpperCase()}</span><span class="audit-target">${l.target}</span></div><div class="audit-meta"><span>${l.actor}</span><span>${timeAgo(l.timestamp)}</span></div></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// =====================================================
+// USERS LIST
+// =====================================================
+function renderUsers() {
+  const users = State.data.users;
+  const active = users.filter(u => !u.deletedAt);
+  const deleted = users.filter(u => u.deletedAt);
+  const logs = State.auditLogs.filter(l => l.section === 'users');
+  let display = State.currentTab === 'archived' ? deleted : active;
+  if (State.searchQuery) display = display.filter(u => u.name.toLowerCase().includes(State.searchQuery.toLowerCase()) || u.email.toLowerCase().includes(State.searchQuery.toLowerCase()));
+
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">User Management</h1><p class="page-subtitle">${active.length} active · ${deleted.length} archived</p></div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="showToast('Exporting...','info')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+        <button class="btn btn-primary" onclick="openForm('user')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create User</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab ${State.currentTab==='data'?'active':''}" onclick="switchTab('data')">Active Users</div>
+      <div class="tab ${State.currentTab==='archived'?'active':''}" onclick="switchTab('archived')">Archived<span class="tab-badge">${deleted.length}</span></div>
+      <div class="tab ${State.currentTab==='audit'?'active':''}" onclick="switchTab('audit')">Audit Log</div>
+    </div>
+    ${State.currentTab === 'audit' ? renderSectionAudit(logs) : `
+    <div class="table-container">
+      <div class="table-toolbar">
+        <div class="table-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input type="text" placeholder="Filter users…" oninput="filterTable(this.value)"></div>
+        <div class="table-filters"><button class="btn btn-sm btn-secondary">All Statuses</button></div>
+      </div>
+      <table class="data-table"><thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Classification</th><th>Created</th><th style="text-align:right">Actions</th></tr></thead><tbody>
+        ${display.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><div class="empty-state-title">No users found</div><div class="empty-state-desc">Adjust search or create a new user</div></div></td></tr>` :
+        display.map(u => {
+          const rolesToShow = u.roles.slice(0, 2);
+          const moreRoles = u.roles.length - 2;
+          return `<tr class="${u.deletedAt?'deleted':''}" tabindex="0">
+          <td><div class="table-cell-user"><div class="table-avatar ${avatarCls(u.id)}">${initials(u.name)}</div><div><div class="table-cell-main">${u.name}</div><div class="table-cell-sub">${u.email}</div></div></div></td>
+          <td>
+            ${rolesToShow.map(r => `<span class="role-chip">${getRoleName(r)}</span>`).join('')}
+            ${moreRoles > 0 ? `<span class="role-chip-more">+${moreRoles} more</span>` : ''}
+          </td>
+          <td><span class="status-badge ${u.status}"><span class="dot"></span>${u.status}</span></td>
+          <td><span class="classification ${u.classification}">${u.classification}</span></td>
+          <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-secondary)">${fmtDate(u.createdAt)}</td>
+          <td><div class="table-actions">
+            <button class="btn-icon" title="Edit" onclick="openForm('user','${u.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          </div></td></tr>`;
+        }).join('')}
+      </tbody></table>
+      <div class="table-footer"><div class="table-info">Showing ${display.length} of ${users.length}</div><div class="pagination"><button class="page-btn">‹</button><button class="page-btn active">1</button><button class="page-btn">›</button></div></div>
+    </div>`}
+  </div>`;
+}
+
+// =====================================================
+// ROLES LIST
+// =====================================================
+function renderRoles() {
+  const roles = State.data.roles;
+  const active = roles.filter(r => !r.deletedAt);
+  const deleted = roles.filter(r => r.deletedAt);
+  const logs = State.auditLogs.filter(l => l.section === 'roles');
+  const display = State.currentTab === 'archived' ? deleted : active;
+
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">Role Management</h1><p class="page-subtitle">${active.length} active · ${deleted.length} archived</p></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="openForm('role')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create Role</button></div>
+    </div>
+    <div class="tabs">
+      <div class="tab ${State.currentTab==='data'?'active':''}" onclick="switchTab('data')">Roles</div>
+      <div class="tab ${State.currentTab==='archived'?'active':''}" onclick="switchTab('archived')">Archived<span class="tab-badge">${deleted.length}</span></div>
+      <div class="tab ${State.currentTab==='audit'?'active':''}" onclick="switchTab('audit')">Audit Log</div>
+    </div>
+    ${State.currentTab === 'audit' ? renderSectionAudit(logs) : `
+    <div class="table-container"><table class="data-table"><thead><tr><th>Role</th><th>Slug</th><th>Permissions</th><th>Users</th><th>Classification</th><th style="text-align:right">Actions</th></tr></thead><tbody>
+      ${display.map(r => `<tr class="${r.deletedAt?'deleted':''}" tabindex="0">
+        <td><div><div class="table-cell-main">${r.name}</div><div class="table-cell-sub">${r.description}</div></div></td>
+        <td><code style="font-family:var(--font-mono);font-size:10px;color:var(--cyan-dim);background:var(--bg-deep);padding:1px 5px;border-radius:var(--radius-sm)">${r.slug}</code></td>
+        <td><div class="scope-tags">${r.permissions.slice(0,3).map(p=>`<span class="scope-tag">${getPermName(p)}</span>`).join('')}${r.permissions.length > 3 ? `<span class="role-chip-more">+${r.permissions.length-3}</span>` : ''}</div></td>
+        <td style="font-family:var(--font-mono);font-size:12px">${getUserCountForRole(r.id)}</td>
+        <td><span class="classification ${r.classification}">${r.classification}</span></td>
+        <td><div class="table-actions">
+          <button class="btn-icon" title="Edit" onclick="openForm('role','${r.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        </div></td></tr>`).join('')}
+    </tbody></table></div>`}
+  </div>`;
+}
+
+// =====================================================
+// PERMISSIONS LIST
+// =====================================================
+function renderPerms() {
+  const perms = State.data.permissions;
+  const active = perms.filter(p => !p.deletedAt);
+  const logs = State.auditLogs.filter(l => l.section === 'permissions');
+  const scopes = [...new Set(active.map(p => p.scope))];
+
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">Permissions</h1><p class="page-subtitle">${active.length} defined across ${scopes.length} scopes</p></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="openForm('perm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create Permission</button></div>
+    </div>
+    <div class="tabs">
+      <div class="tab active">All Permissions</div>
+      <div class="tab" onclick="switchTab('audit')">Audit Log</div>
+    </div>
+    ${State.currentTab === 'audit' ? renderSectionAudit(logs) : scopes.map(scope => `
+    <div style="margin-bottom:var(--space-6)">
+      <h3 style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--space-3);padding-left:var(--space-2)">Scope: ${scope}</h3>
+      <div class="table-container"><table class="data-table"><thead><tr><th>Name</th><th>Display Name</th><th>Description</th><th>Used by Roles</th><th style="text-align:right">Actions</th></tr></thead><tbody>
+        ${active.filter(p => p.scope === scope).map(p => {
+          const usedBy = State.data.roles.filter(r => !r.deletedAt && r.permissions.includes(p.id));
+          return `<tr>
+          <td><code style="font-family:var(--font-mono);font-size:10px;color:var(--purple);background:var(--purple-weak);padding:1px 5px;border-radius:var(--radius-sm);border:1px solid rgba(168,85,247,0.15)">${p.name}</code></td>
+          <td style="font-weight:500">${p.displayName}</td>
+          <td style="color:var(--text-secondary);font-size:12px">${p.description}</td>
+          <td>${usedBy.slice(0,2).map(r=>`<span class="role-chip">${r.name}</span>`).join('')}${usedBy.length > 2 ? `<span class="role-chip-more">+${usedBy.length-2}</span>` : ''}${usedBy.length === 0 ? '<span style="color:var(--text-muted);font-size:10px">—</span>' : ''}</td>
+          <td><div class="table-actions">
+            <button class="btn-icon" title="Edit" onclick="openForm('perm','${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          </div></td></tr>`;
+        }).join('')}
+      </tbody></table></div></div>`).join('')}
+  </div>`;
+}
+
+// =====================================================
+// OAUTH LIST
+// =====================================================
+function renderOAuth() {
+  const apps = State.data.oauthApps.filter(o => !o.deletedAt);
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">OAuth Applications</h1><p class="page-subtitle">${apps.length} registered</p></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="openForm('oauth')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Register App</button></div>
+    </div>
+    <div class="table-container"><table class="data-table"><thead><tr><th>Application</th><th>Client ID</th><th>Status</th><th>Classification</th><th style="text-align:right">Actions</th></tr></thead><tbody>
+      ${apps.map(a => `<tr>
+        <td><div class="table-cell-main">${a.name}</div><div class="table-cell-sub">${a.redirectUris[0]}</div></td>
+        <td><code style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);background:var(--bg-deep);padding:2px 6px;border-radius:var(--radius-sm)">${a.clientId}</code></td>
+        <td><span class="status-badge ${a.status}"><span class="dot"></span>${a.status}</span></td>
+        <td><span class="classification ${a.classification}">${a.classification}</span></td>
+        <td><div class="table-actions">
+          <button class="btn-icon" title="Edit" onclick="openForm('oauth','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        </div></td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+
+// =====================================================
+// SETTINGS
+// =====================================================
+function renderSettings() {
+  const s = State.data.settings;
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">Settings</h1><p class="page-subtitle">System configuration</p></div>
+      <div class="page-actions"><span class="classification restricted">RESTRICTED</span></div>
+    </div>
+    <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);overflow:hidden">
+      <div style="padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--border-subtle)">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:600">Security</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Authentication controls</div>
+      </div>
+      <div style="padding:var(--space-6)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4) 0;border-bottom:1px solid var(--border-subtle)">
+          <div><div style="font-size:12.5px;font-weight:500">Require MFA</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">Force multi-factor auth for all users</div></div>
+          <label class="toggle" style="position:relative;width:36px;height:18px;cursor:pointer;flex-shrink:0;display:block"><input type="checkbox" ${s.security.mfaRequired?'checked':''} style="display:none"><span style="position:absolute;inset:0;background:var(--border-medium);border-radius:9px;transition:all var(--duration-base) ease;${s.security.mfaRequired?'background:var(--cyan);box-shadow:0 0 6px rgba(0,229,255,0.3)':''}"><span style="position:absolute;width:12px;height:12px;left:3px;top:3px;background:${s.security.mfaRequired?'var(--bg-void)':'var(--text-secondary)'};border-radius:50%;transition:all var(--duration-base) ease;transform:translateX(${s.security.mfaRequired?'18px':'0'})"></span></span></label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4) 0;border-bottom:1px solid var(--border-subtle)">
+          <div><div style="font-size:12.5px;font-weight:500">Session Timeout</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">Auto-logout after inactivity (seconds)</div></div>
+          <input class="form-input" style="width:100px" type="number" value="${s.security.sessionTimeout}">
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4) 0">
+          <div><div style="font-size:12.5px;font-weight:500">Min Password Length</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">Enforced on creation/reset</div></div>
+          <input class="form-input" style="width:70px" type="number" value="${s.security.passwordMinLength}">
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// =====================================================
+// GLOBAL AUDIT
+// =====================================================
+function renderAudit() {
+  const logs = State.auditLogs;
+  return `<div class="page-inner page-content">
+    <div class="page-header">
+      <div><h1 class="page-title">System Audit Log</h1><p class="page-subtitle">Complete trail · ${logs.length} events</p></div>
+      <div class="page-actions"><span class="classification restricted">RESTRICTED</span></div>
+    </div>
+    <div class="table-container" style="padding:var(--space-6)">
+      <div class="audit-timeline">
+        ${logs.map(l => `<div class="audit-entry ${l.action}">
+          <div class="audit-header"><span class="audit-action ${l.action}">${l.action.toUpperCase()}</span><span class="audit-target">${l.target}</span><span class="perm-tag">${l.section}</span></div>
+          ${l.details ? `<div class="audit-details">${l.details}</div>` : ''}
+          <div class="audit-meta"><span>By: ${l.actor}</span><span>IP: ${l.ip}</span><span>${fmtDateTime(l.timestamp)}</span></div>
+        </div>`).join('')}
+      </div>
+    </div></div>`;
+}
+
+function renderSectionAudit(logs) {
+  if (!logs.length) return `<div class="table-container" style="padding:var(--space-6)"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="empty-state-title">No events yet</div><div class="empty-state-desc">Actions will appear here</div></div></div>`;
+  return `<div class="table-container" style="padding:var(--space-6)"><div class="audit-timeline">${logs.map(l => `<div class="audit-entry ${l.action}"><div class="audit-header"><span class="audit-action ${l.action}">${l.action.toUpperCase()}</span><span class="audit-target">${l.target}</span></div>${l.details?`<div class="audit-details">${l.details}</div>`:''}<div class="audit-meta"><span>By: ${l.actor}</span><span>IP: ${l.ip}</span><span>${fmtDateTime(l.timestamp)}</span></div></div>`).join('')}</div></div>`;
+}
+
+function switchTab(tab) { State.currentTab = tab; render(); }
+function filterTable(q) { State.searchQuery = q; render(); }
+
+// =====================================================
+// FORM PAGE: USER
+// =====================================================
+function renderUserFormPage(id) {
+  const u = id ? State.data.users.find(x => x.id === id) : null;
+  const isNew = !u;
+  const selectedRoles = u ? [...u.roles] : [];
+  const allRoles = State.data.roles.filter(r => !r.deletedAt);
+
+  return `
+  <div class="form-page">
+    <div class="form-header">
+      <div class="form-header-left">
+        <button class="form-back" onclick="closeForm()" title="Back to Users">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </button>
+        <div class="form-title-group">
+          <div class="form-title">${isNew ? 'Create New User' : u.name}</div>
+          <div class="form-subtitle">${isNew ? 'NEW ACCOUNT' : u.email.toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="form-header-right">
+        ${!isNew ? `<div class="form-header-meta"><strong>${fmtDate(u.createdAt)}</strong>CREATED</div>` : ''}
+        ${!isNew ? `<span class="classification ${u.classification}">${u.classification}</span>` : ''}
+        <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUser('${id || ''}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          ${isNew ? 'Create User' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+
+    <div class="form-body">
+      <div class="form-grid">
+        <!-- MAIN COLUMN -->
+        <div class="form-main">
+          <!-- IDENTITY -->
+          <div class="form-card accent-cyan">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Identity</div>
+                <div class="form-card-desc">Basic user information</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Full Name <span class="required">*</span></label>
+                  <input class="form-input" id="f_name" value="${u?.name || ''}" placeholder="e.g. Jane Cooper">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Email Address <span class="required">*</span></label>
+                  <input class="form-input" id="f_email" type="email" value="${u?.email || ''}" placeholder="jane@company.com">
+                </div>
+              </div>
+              <div class="form-helper">A verification email will be sent upon creation</div>
+            </div>
+          </div>
+
+          <!-- ROLES (Multi-select) -->
+          <div class="form-card accent-purple">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Roles & Access</div>
+                <div class="form-card-desc">Assign one or more roles to define permissions</div>
+              </div>
+              <span class="classification internal">${allRoles.length} available</span>
+            </div>
+            <div class="form-card-body">
+              <div class="form-group">
+                <label class="form-label">Assigned Roles <span class="label-hint">(multiple allowed)</span></label>
+                <div class="tag-select" id="roleTagSelect" data-selected='${JSON.stringify(selectedRoles)}'></div>
+                <div class="form-helper">Users inherit all permissions from their assigned roles</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Effective Permissions <span class="label-hint">(auto-computed)</span></label>
+                <div id="effectivePerms" style="padding:var(--space-3);background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:var(--radius-md);min-height:44px;">
+                  <span style="color:var(--text-muted);font-size:11px;">Select roles to see effective permissions</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STATUS & ACCESS -->
+          <div class="form-card accent-amber">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Access Control</div>
+                <div class="form-card-desc">Status and data classification</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Status</label>
+                  <select class="form-select" id="f_status">
+                    <option value="active" ${u?.status==='active'?'selected':''}>Active</option>
+                    <option value="inactive" ${u?.status==='inactive'?'selected':''}>Inactive</option>
+                    <option value="suspended" ${u?.status==='suspended'?'selected':''}>Suspended</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Classification</label>
+                  <select class="form-select" id="f_class">
+                    <option value="public" ${u?.classification==='public'?'selected':''}>Public</option>
+                    <option value="internal" ${u?.classification==='internal'?'selected':''}>Internal</option>
+                    <option value="confidential" ${u?.classification==='confidential'?'selected':''}>Confidential</option>
+                    <option value="restricted" ${u?.classification==='restricted'?'selected':''}>Restricted</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${!isNew ? `
+          <!-- DANGER ZONE -->
+          <div class="danger-zone">
+            <div class="danger-zone-info">
+              <div class="danger-zone-title">Archive this user</div>
+              <div class="danger-zone-desc">Soft-deletes the account. Can be restored from the Archived tab.</div>
+            </div>
+            <button class="btn btn-danger" onclick="archiveUser('${u.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Archive
+            </button>
+          </div>` : ''}
+        </div>
+
+        <!-- SIDE COLUMN -->
+        <div class="form-side">
+          ${!isNew ? `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Metadata</div>
+                <div class="form-card-desc">System information</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="meta-list">
+                <div class="meta-item"><div class="meta-label">User ID</div><div class="meta-value mono">${u.id}</div></div>
+                <div class="meta-item"><div class="meta-label">Created</div><div class="meta-value mono">${fmtDateTime(u.createdAt)}</div></div>
+                <div class="meta-item"><div class="meta-label">Last Login</div><div class="meta-value mono">${u.lastLogin ? fmtDateTime(u.lastLogin) : 'Never'}</div></div>
+                <div class="meta-item"><div class="meta-label">Source IP</div><div class="meta-value mono">10.0.1.15</div></div>
+                <div class="meta-item"><div class="meta-label">Assigned Roles</div><div class="meta-value">${u.roles.length} role${u.roles.length !== 1 ? 's' : ''}</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Recent Activity</div>
+                <div class="form-card-desc">Last 3 events</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="audit-timeline" style="padding-left:var(--space-5)">
+                ${State.auditLogs.filter(l => l.section === 'users' && l.target === u.name).slice(0, 3).map(l => `
+                  <div class="audit-entry ${l.action}" style="padding:var(--space-2) 0 var(--space-2) var(--space-4)">
+                    <div class="audit-meta" style="gap:var(--space-2)">
+                      <span class="audit-action ${l.action}">${l.action}</span>
+                      <span>${timeAgo(l.timestamp)}</span>
+                    </div>
+                  </div>
+                `).join('') || '<div style="color:var(--text-muted);font-size:11px;padding:var(--space-3) 0">No recent activity</div>'}
+              </div>
+            </div>
+          </div>` : `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Creation Info</div>
+                <div class="form-card-desc">What happens next</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="alert-box info" style="margin:0;padding:var(--space-4)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <div class="alert-box-content">
+                  <div class="alert-box-desc" style="font-size:11.5px">Upon creation, a verification email will be sent to the provided address. The user will need to set their password on first login.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Available Roles</div>
+                <div class="form-card-desc">${allRoles.length} roles to choose from</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+                ${allRoles.map(r => `
+                  <div style="padding:var(--space-3);background:var(--bg-deep);border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+                    <div style="font-size:12px;font-weight:500">${r.name}</div>
+                    <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-top:2px">${r.slug} · ${r.permissions.length} perms</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// =====================================================
+// FORM PAGE: ROLE
+// =====================================================
+function renderRoleFormPage(id) {
+  const r = id ? State.data.roles.find(x => x.id === id) : null;
+  const isNew = !r;
+  const selectedPerms = r ? [...r.permissions] : [];
+
+  const permsByScope = {};
+  State.data.permissions.filter(p => !p.deletedAt).forEach(p => {
+    if (!permsByScope[p.scope]) permsByScope[p.scope] = [];
+    permsByScope[p.scope].push(p);
+  });
+
+  const totalPerms = State.data.permissions.filter(p => !p.deletedAt).length;
+  const userCount = r ? getUserCountForRole(r.id) : 0;
+
+  return `
+  <div class="form-page">
+    <div class="form-header">
+      <div class="form-header-left">
+        <button class="form-back" onclick="closeForm()" title="Back to Roles">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </button>
+        <div class="form-title-group">
+          <div class="form-title">${isNew ? 'Create New Role' : r.name}</div>
+          <div class="form-subtitle">${isNew ? 'NEW ROLE DEFINITION' : r.slug.toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="form-header-right">
+        ${!isNew ? `<div class="form-header-meta"><strong>${userCount} users</strong>ASSIGNED</div>` : ''}
+        ${!isNew ? `<span class="classification ${r.classification}">${r.classification}</span>` : ''}
+        <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveRole('${id || ''}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          ${isNew ? 'Create Role' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+
+    <div class="form-body">
+      <div class="form-grid">
+        <div class="form-main">
+          <!-- DEFINITION -->
+          <div class="form-card accent-cyan">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Role Definition</div>
+                <div class="form-card-desc">Core identity and description</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Role Name <span class="required">*</span></label>
+                  <input class="form-input" id="f_rname" value="${r?.name || ''}" placeholder="e.g. Content Manager">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Slug <span class="required">*</span></label>
+                  <input class="form-input" id="f_rslug" value="${r?.slug || ''}" placeholder="content_manager">
+                  <div class="form-helper">Unique identifier used in API & code</div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-textarea" id="f_rdesc" placeholder="Describe what this role can do...">${r?.description || ''}</textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Classification</label>
+                <select class="form-select" id="f_rclass">
+                  <option value="public" ${r?.classification==='public'?'selected':''}>Public</option>
+                  <option value="internal" ${r?.classification==='internal'?'selected':''}>Internal</option>
+                  <option value="confidential" ${r?.classification==='confidential'?'selected':''}>Confidential</option>
+                  <option value="restricted" ${r?.classification==='restricted'?'selected':''}>Restricted</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- PERMISSIONS BY SCOPE -->
+          <div class="form-card accent-purple">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Permissions</div>
+                <div class="form-card-desc">${selectedPerms.length} of ${totalPerms} permissions assigned, organized by scope</div>
+              </div>
+              <span class="classification internal">${Object.keys(permsByScope).length} scopes</span>
+            </div>
+            <div class="form-card-body">
+              <div class="scope-groups" id="permScopeGroups" data-selected='${JSON.stringify(selectedPerms)}'>
+                ${Object.entries(permsByScope).map(([scope, perms]) => {
+                  const count = perms.filter(p => selectedPerms.includes(p.id)).length;
+                  return `
+                    <div class="scope-group ${count > 0 ? 'expanded' : ''}" data-scope="${scope}">
+                      <div class="scope-group-header" onclick="toggleScopeGroup('${scope}')">
+                        <svg class="scope-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span class="scope-group-title">${scope}</span>
+                        <label class="scope-group-select-all" onclick="event.stopPropagation()">
+                          <input type="checkbox" onchange="toggleScopeSelectAll('${scope}', this.checked)" ${count === perms.length ? 'checked' : ''}>
+                          All
+                        </label>
+                        <span class="scope-group-count">${count} / ${perms.length}</span>
+                      </div>
+                      <div class="scope-group-body">
+                        <div class="scope-group-list">
+                          ${perms.map(p => `
+                            <label class="perm-checkbox-item">
+                              <input type="checkbox" value="${p.id}" ${selectedPerms.includes(p.id) ? 'checked' : ''} onchange="updateScopeGroupCount('${scope}')">
+                              <div class="perm-checkbox-content">
+                                <div class="perm-checkbox-name">${p.displayName}</div>
+                                <div class="perm-checkbox-desc">${p.description}</div>
+                              </div>
+                            </label>
+                          `).join('')}
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+
+          ${!isNew ? `
+          <!-- DANGER ZONE -->
+          <div class="danger-zone">
+            <div class="danger-zone-info">
+              <div class="danger-zone-title">Archive this role</div>
+              <div class="danger-zone-desc">${userCount > 0 ? `Cannot archive: ${userCount} user${userCount !== 1 ? 's are' : ' is'} assigned` : 'Soft-deletes the role. Can be restored later.'}</div>
+            </div>
+            <button class="btn btn-danger" ${userCount > 0 ? 'disabled' : ''} onclick="archiveRole('${r.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Archive
+            </button>
+          </div>` : ''}
+        </div>
+
+        <!-- SIDE -->
+        <div class="form-side">
+          ${!isNew ? `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Usage</div>
+                <div class="form-card-desc">Assignment statistics</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="meta-list">
+                <div class="meta-item"><div class="meta-label">Role ID</div><div class="meta-value mono">${r.id}</div></div>
+                <div class="meta-item"><div class="meta-label">Created</div><div class="meta-value mono">${fmtDate(r.createdAt)}</div></div>
+                <div class="meta-item"><div class="meta-label">Assigned Users</div><div class="meta-value">${userCount} user${userCount !== 1 ? 's' : ''}</div></div>
+                <div class="meta-item"><div class="meta-label">Total Permissions</div><div class="meta-value">${r.permissions.length} of ${totalPerms}</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Assigned Users</div>
+                <div class="form-card-desc">Who has this role</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              ${State.data.users.filter(u => !u.deletedAt && u.roles.includes(r.id)).length === 0
+                ? '<div style="color:var(--text-muted);font-size:11px;padding:var(--space-3) 0">No users assigned</div>'
+                : `<div style="display:flex;flex-direction:column;gap:var(--space-2)">
+                    ${State.data.users.filter(u => !u.deletedAt && u.roles.includes(r.id)).slice(0, 5).map(u => `
+                      <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border-subtle)">
+                        <div class="table-avatar ${avatarCls(u.id)}">${initials(u.name)}</div>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.name}</div>
+                          <div style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)">${u.email}</div>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>`
+              }
+            </div>
+          </div>` : `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Permission Scopes</div>
+                <div class="form-card-desc">${Object.keys(permsByScope).length} scopes available</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+                ${Object.entries(permsByScope).map(([scope, perms]) => `
+                  <div style="padding:var(--space-3);background:var(--bg-deep);border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+                    <div style="font-family:var(--font-mono);font-size:10px;color:var(--purple);letter-spacing:1px;text-transform:uppercase">${scope}</div>
+                    <div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px">${perms.length} permission${perms.length !== 1 ? 's' : ''}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// =====================================================
+// FORM PAGE: PERMISSION
+// =====================================================
+function renderPermFormPage(id) {
+  const p = id ? State.data.permissions.find(x => x.id === id) : null;
+  const isNew = !p;
+  const usedBy = p ? State.data.roles.filter(r => !r.deletedAt && r.permissions.includes(p.id)) : [];
+
+  return `
+  <div class="form-page">
+    <div class="form-header">
+      <div class="form-header-left">
+        <button class="form-back" onclick="closeForm()" title="Back to Permissions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </button>
+        <div class="form-title-group">
+          <div class="form-title">${isNew ? 'Create Permission' : p.displayName}</div>
+          <div class="form-subtitle">${isNew ? 'NEW PERMISSION DEFINITION' : p.name.toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="form-header-right">
+        ${!isNew ? `<div class="form-header-meta"><strong>${usedBy.length} roles</strong>USAGE</div>` : ''}
+        <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+        <button class="btn btn-primary" onclick="savePerm('${id || ''}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          ${isNew ? 'Create Permission' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+
+    <div class="form-body">
+      <div class="form-grid">
+        <div class="form-main">
+          <div class="form-card accent-purple">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Permission Definition</div>
+                <div class="form-card-desc">Identity and scope</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Key <span class="required">*</span></label>
+                  <input class="form-input" id="f_pname" value="${p?.name || ''}" placeholder="user_manage">
+                  <div class="form-helper">Unique identifier used in code</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Display Name <span class="required">*</span></label>
+                  <input class="form-input" id="f_pdisp" value="${p?.displayName || ''}" placeholder="Manage Users">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-textarea" id="f_pdesc" placeholder="What does this permission allow?">${p?.description || ''}</textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Scope</label>
+                <select class="form-select" id="f_pscope">
+                  <option value="global" ${p?.scope==='global'?'selected':''}>Global</option>
+                  <option value="system" ${p?.scope==='system'?'selected':''}>System</option>
+                  <option value="content" ${p?.scope==='content'?'selected':''}>Content</option>
+                  <option value="api" ${p?.scope==='api'?'selected':''}>API</option>
+                  <option value="analytics" ${p?.scope==='analytics'?'selected':''}>Analytics</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          ${!isNew ? `
+          <div class="danger-zone">
+            <div class="danger-zone-info">
+              <div class="danger-zone-title">Archive this permission</div>
+              <div class="danger-zone-desc">${usedBy.length > 0 ? `Warning: ${usedBy.length} role${usedBy.length !== 1 ? 's use' : ' uses'} this permission` : 'Soft-deletes the permission.'}</div>
+            </div>
+            <button class="btn btn-danger" onclick="archivePerm('${p.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Archive
+            </button>
+          </div>` : ''}
+        </div>
+
+        <div class="form-side">
+          ${!isNew ? `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Metadata</div>
+                <div class="form-card-desc">System information</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="meta-list">
+                <div class="meta-item"><div class="meta-label">Permission ID</div><div class="meta-value mono">${p.id}</div></div>
+                <div class="meta-item"><div class="meta-label">Created</div><div class="meta-value mono">${fmtDate(p.createdAt)}</div></div>
+                <div class="meta-item"><div class="meta-label">Scope</div><div class="meta-value">${p.scope}</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Used by Roles</div>
+                <div class="form-card-desc">${usedBy.length} role${usedBy.length !== 1 ? 's' : ''}</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              ${usedBy.length === 0
+                ? '<div style="color:var(--text-muted);font-size:11px;padding:var(--space-3) 0">Not used by any role</div>'
+                : `<div style="display:flex;flex-direction:column;gap:var(--space-2)">
+                    ${usedBy.map(r => `
+                      <div style="padding:var(--space-3);background:var(--bg-deep);border-radius:var(--radius-md);border:1px solid var(--border-subtle);cursor:pointer" onclick="openForm('role','${r.id}')">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)">
+                          <div style="font-size:12px;font-weight:500">${r.name}</div>
+                          <span class="classification ${r.classification}" style="font-size:7px">${r.classification}</span>
+                        </div>
+                        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-top:2px">${r.slug} · ${getUserCountForRole(r.id)} users</div>
+                      </div>
+                    `).join('')}
+                  </div>`
+              }
+            </div>
+          </div>` : `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Available Scopes</div>
+                <div class="form-card-desc">Where permissions can live</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+                ${['global','system','content','api','analytics'].map(s => {
+                  const count = State.data.permissions.filter(p => !p.deletedAt && p.scope === s).length;
+                  return `<div style="padding:var(--space-3);background:var(--bg-deep);border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+                    <div style="font-family:var(--font-mono);font-size:10px;color:var(--purple);letter-spacing:1px;text-transform:uppercase">${s}</div>
+                    <div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px">${count} existing permission${count !== 1 ? 's' : ''}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// =====================================================
+// FORM PAGE: OAUTH
+// =====================================================
+function renderOAuthFormPage(id) {
+  const a = id ? State.data.oauthApps.find(x => x.id === id) : null;
+  const isNew = !a;
+
+  return `
+  <div class="form-page">
+    <div class="form-header">
+      <div class="form-header-left">
+        <button class="form-back" onclick="closeForm()" title="Back to OAuth Apps">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </button>
+        <div class="form-title-group">
+          <div class="form-title">${isNew ? 'Register OAuth Application' : a.name}</div>
+          <div class="form-subtitle">${isNew ? 'NEW APPLICATION' : a.clientId.toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="form-header-right">
+        ${!isNew ? `<span class="classification ${a.classification}">${a.classification}</span>` : ''}
+        ${!isNew ? `<span class="status-badge ${a.status}"><span class="dot"></span>${a.status}</span>` : ''}
+        <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveOAuth('${id || ''}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          ${isNew ? 'Register App' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+
+    <div class="form-body">
+      <div class="form-grid">
+        <div class="form-main">
+          <div class="form-card accent-cyan">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Application Details</div>
+                <div class="form-card-desc">Identity and endpoints</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="form-group">
+                <label class="form-label">Application Name <span class="required">*</span></label>
+                <input class="form-input" id="f_oname" value="${a?.name || ''}" placeholder="e.g. Mobile App Android">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Redirect URIs <span class="required">*</span></label>
+                <textarea class="form-textarea" id="f_ouri" placeholder="https://example.com/callback (one per line)">${a?.redirectUris?.join('\n') || ''}</textarea>
+                <div class="form-helper">Enter one URI per line</div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Status</label>
+                  <select class="form-select" id="f_ostatus">
+                    <option value="active" ${a?.status==='active'?'selected':''}>Active</option>
+                    <option value="suspended" ${a?.status==='suspended'?'selected':''}>Suspended</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Classification</label>
+                  <select class="form-select" id="f_oclass">
+                    <option value="public" ${a?.classification==='public'?'selected':''}>Public</option>
+                    <option value="internal" ${a?.classification==='internal'?'selected':''}>Internal</option>
+                    <option value="confidential" ${a?.classification==='confidential'?'selected':''}>Confidential</option>
+                    <option value="restricted" ${a?.classification==='restricted'?'selected':''}>Restricted</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Scopes</label>
+                <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);padding:var(--space-3);background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:var(--radius-md)">
+                  ${['read','write','admin','profile','report_view','api_read','api_write'].map(s => `
+                    <label style="display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);cursor:pointer;transition:background var(--duration-fast) ease" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+                      <input type="checkbox" value="${s}" ${a?.scopes?.includes(s) ? 'checked' : ''} style="width:13px;height:13px;accent-color:var(--cyan);cursor:pointer">
+                      <span style="font-size:11.5px;color:var(--text-secondary)">${s}</span>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${!isNew ? `
+          <div class="danger-zone">
+            <div class="danger-zone-info">
+              <div class="danger-zone-title">Archive this application</div>
+              <div class="danger-zone-desc">Soft-deletes the OAuth app. Can be restored later.</div>
+            </div>
+            <button class="btn btn-danger" onclick="archiveOAuth('${a.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Archive
+            </button>
+          </div>` : ''}
+        </div>
+
+        <div class="form-side">
+          ${!isNew ? `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Credentials</div>
+                <div class="form-card-desc">OAuth 2.0 client info</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="meta-list">
+                <div class="meta-item">
+                  <div class="meta-label">Client ID</div>
+                  <div class="meta-value mono" style="display:flex;align-items:center;gap:var(--space-2)">${a.clientId}<button class="btn-icon" title="Copy" style="width:20px;height:20px" onclick="showToast('Client ID copied','info')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">Client Secret</div>
+                  <div class="meta-value mono" style="display:flex;align-items:center;gap:var(--space-2)">••••••••••••••••<button class="btn-icon" title="Rotate" style="width:20px;height:20px" onclick="showToast('Secret rotated','warning')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button></div>
+                </div>
+                <div class="meta-item"><div class="meta-label">Created</div><div class="meta-value mono">${fmtDate(a.createdAt)}</div></div>
+                <div class="meta-item"><div class="meta-label">Active Scopes</div><div class="meta-value">${a.scopes.length}</div></div>
+              </div>
+            </div>
+          </div>` : `
+          <div class="form-card">
+            <div class="form-card-header">
+              <div class="form-card-title-group">
+                <div class="form-card-title">Registration</div>
+                <div class="form-card-desc">What happens next</div>
+              </div>
+            </div>
+            <div class="form-card-body">
+              <div class="alert-box info" style="margin:0;padding:var(--space-4)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <div class="alert-box-content">
+                  <div class="alert-box-desc" style="font-size:11.5px">Upon registration, a unique client ID and secret will be generated. The secret will only be shown once.</div>
+                </div>
+              </div>
+            </div>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// =====================================================
+// TAG SELECT (Multi-role)
+// =====================================================
+function initTagSelect() {
+  const el = document.getElementById('roleTagSelect');
+  if (!el) return;
+
+  let selected = JSON.parse(el.dataset.selected || '[]');
+
+  function render() {
+    const available = State.data.roles.filter(r => !r.deletedAt);
+    el.innerHTML = '';
+
+    selected.forEach(roleId => {
+      const role = available.find(r => r.id === roleId);
+      if (!role) return;
+      const chip = document.createElement('div');
+      chip.className = 'tag-chip';
+      chip.innerHTML = `
+        <span class="tag-chip-text">${role.name}</span>
+        <button class="tag-chip-remove" data-role="${roleId}" title="Remove">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      `;
+      chip.querySelector('.tag-chip-remove').onclick = (e) => {
+        e.stopPropagation();
+        selected = selected.filter(id => id !== roleId);
+        el.dataset.selected = JSON.stringify(selected);
+        render();
+        updateEffectivePerms();
+      };
+      el.appendChild(chip);
+    });
+
+    const inputWrap = document.createElement('div');
+    inputWrap.style.cssText = 'flex:1;min-width:120px;position:relative;display:flex;';
+    inputWrap.innerHTML = `
+      <input class="tag-select-input" placeholder="${selected.length ? 'Add another role...' : 'Click to select roles...'}" readonly>
+      <div class="dropdown-menu" id="roleDropdown"></div>
+    `;
+    el.appendChild(inputWrap);
+
+    const input = inputWrap.querySelector('input');
+    const dropdown = inputWrap.querySelector('.dropdown-menu');
+
+    input.onclick = (e) => {
+      e.stopPropagation();
+      renderDropdown('');
+      dropdown.classList.add('active');
+      el.classList.add('active');
+    };
+
+    function renderDropdown(filter) {
+      const filtered = available.filter(r =>
+        !selected.includes(r.id) &&
+        (r.name.toLowerCase().includes(filter.toLowerCase()) || r.slug.toLowerCase().includes(filter.toLowerCase()))
+      );
+      if (filtered.length === 0) {
+        dropdown.innerHTML = `<div class="dropdown-empty">No available roles${selected.length ? ' to add' : ''}</div>`;
+      } else {
+        dropdown.innerHTML = `
+          <div class="dropdown-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" placeholder="Search roles..." value="${filter}">
+          </div>
+          <div class="dropdown-list">
+            ${filtered.map(r => `
+              <div class="dropdown-item" data-role="${r.id}">
+                <div class="dropdown-item-content">
+                  <div class="dropdown-item-title">${r.name}</div>
+                  <div class="dropdown-item-sub">${r.slug} · ${r.permissions.length} perms · ${getUserCountForRole(r.id)} users</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        const searchInput = dropdown.querySelector('.dropdown-search input');
+        searchInput.oninput = (e) => { e.stopPropagation(); renderDropdown(e.target.value); setTimeout(() => searchInput.focus(), 0); };
+        searchInput.onclick = (e) => e.stopPropagation();
+
+        dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+          item.onclick = (e) => {
+            e.stopPropagation();
+            const roleId = item.dataset.role;
+            if (!selected.includes(roleId)) {
+              selected.push(roleId);
+              el.dataset.selected = JSON.stringify(selected);
+              render();
+              updateEffectivePerms();
+            }
+          };
+        });
+      }
+    }
+
+    setTimeout(() => {
+      document.addEventListener('click', function closeDD(e) {
+        if (!el.contains(e.target)) {
+          dropdown.classList.remove('active');
+          el.classList.remove('active');
+          document.removeEventListener('click', closeDD);
+        }
+      });
+    }, 100);
+  }
+
+  render();
+  updateEffectivePerms();
+}
+
+function updateEffectivePerms() {
+  const el = document.getElementById('roleTagSelect');
+  const target = document.getElementById('effectivePerms');
+  if (!el || !target) return;
+
+  const selected = JSON.parse(el.dataset.selected || '[]');
+  if (selected.length === 0) {
+    target.innerHTML = `<span style="color:var(--text-muted);font-size:11px;">Select roles to see effective permissions</span>`;
+    return;
+  }
+
+  const permSet = new Set();
+  selected.forEach(roleId => {
+    const role = State.data.roles.find(r => r.id === roleId);
+    if (role) role.permissions.forEach(p => permSet.add(p));
+  });
+
+  const perms = [...permSet].map(id => State.data.permissions.find(p => p.id === id)).filter(Boolean);
+
+  if (perms.length === 0) {
+    target.innerHTML = `<span style="color:var(--text-muted);font-size:11px;">No permissions in selected roles</span>`;
+    return;
+  }
+
+  target.innerHTML = `<div class="scope-tags">${perms.map(p => `<span class="scope-tag" title="${p.description}">${p.displayName}</span>`).join('')}</div>`;
+}
+
+// =====================================================
+// SCOPE GROUPS
+// =====================================================
+function initScopeGroups() {
+  // Interactions handled via inline onclick
+}
+
+function toggleScopeGroup(scope) {
+  const group = document.querySelector(`.scope-group[data-scope="${scope}"]`);
+  if (group) group.classList.toggle('expanded');
+}
+
+function toggleScopeSelectAll(scope, checked) {
+  const group = document.querySelector(`.scope-group[data-scope="${scope}"]`);
+  if (!group) return;
+  group.querySelectorAll('.scope-group-list input[type="checkbox"]').forEach(cb => {
+    cb.checked = checked;
+  });
+  updateScopeGroupCount(scope);
+}
+
+function updateScopeGroupCount(scope) {
+  const group = document.querySelector(`.scope-group[data-scope="${scope}"]`);
+  if (!group) return;
+  const checkboxes = group.querySelectorAll('.scope-group-list input[type="checkbox"]');
+  const checked = group.querySelectorAll('.scope-group-list input[type="checkbox"]:checked');
+  const countEl = group.querySelector('.scope-group-count');
+  const selectAll = group.querySelector('.scope-group-select-all input');
+  if (countEl) countEl.textContent = `${checked.length} / ${checkboxes.length}`;
+  if (selectAll) selectAll.checked = checked.length === checkboxes.length;
+  if (checked.length > 0) group.classList.add('expanded');
+}
+
+// =====================================================
+// SAVE FUNCTIONS
+// =====================================================
+function saveUser(id) {
+  const name = document.getElementById('f_name').value.trim();
+  const email = document.getElementById('f_email').value.trim();
+  const status = document.getElementById('f_status').value;
+  const cls = document.getElementById('f_class').value;
+  const rolesEl = document.getElementById('roleTagSelect');
+  const roles = rolesEl ? JSON.parse(rolesEl.dataset.selected || '[]') : [];
+
+  if (!name || !email) return showToast('Name and email are required', 'error');
+  if (roles.length === 0) return showToast('Assign at least one role', 'error');
+
+  if (id) {
+    const u = State.data.users.find(x => x.id === id);
+    Object.assign(u, { name, email, status, classification: cls, roles });
+    addLog('users', 'update', name, `Updated (roles: ${roles.length}, status: ${status})`);
+    showToast(`User "${name}" updated`, 'success');
+  } else {
+    State.data.users.push({
+      id: genId('usr'), name, email, roles, status, classification: cls,
+      createdAt: new Date().toISOString(), lastLogin: null, deletedAt: null
+    });
+    addLog('users', 'create', name, `Created with ${roles.length} role(s)`);
+    showToast(`User "${name}" created`, 'success');
+  }
+  closeForm();
+  renderNav();
+}
+
+function saveRole(id) {
+  const name = document.getElementById('f_rname').value.trim();
+  const slug = document.getElementById('f_rslug').value.trim();
+  const desc = document.getElementById('f_rdesc').value.trim();
+  const cls = document.getElementById('f_rclass').value;
+  const perms = [...document.querySelectorAll('#permScopeGroups input[type="checkbox"]:checked')].map(cb => cb.value);
+
+  if (!name || !slug) return showToast('Name and slug are required', 'error');
+
+  if (id) {
+    const r = State.data.roles.find(x => x.id === id);
+    Object.assign(r, { name, slug, description: desc, classification: cls, permissions: perms });
+    addLog('roles', 'update', name, `Updated (${perms.length} permissions)`);
+    showToast(`Role "${name}" updated`, 'success');
+  } else {
+    State.data.roles.push({
+      id: genId('role'), name, slug, description: desc, classification: cls,
+      permissions: perms, createdAt: new Date().toISOString(), deletedAt: null
+    });
+    addLog('roles', 'create', name, `Created with ${perms.length} permissions`);
+    showToast(`Role "${name}" created`, 'success');
+  }
+  closeForm();
+  renderNav();
+}
+
+function savePerm(id) {
+  const name = document.getElementById('f_pname').value.trim();
+  const disp = document.getElementById('f_pdisp').value.trim();
+  const desc = document.getElementById('f_pdesc').value.trim();
+  const scope = document.getElementById('f_pscope').value;
+  if (!name || !disp) return showToast('Key and display name required', 'error');
+  if (id) {
+    const p = State.data.permissions.find(x => x.id === id);
+    Object.assign(p, { name, displayName: disp, description: desc, scope });
+    addLog('permissions', 'update', disp, `Scope: ${scope}`);
+    showToast(`"${disp}" updated`);
+  } else {
+    State.data.permissions.push({
+      id: genId('perm'), name, displayName: disp, description: desc, scope,
+      createdAt: new Date().toISOString(), deletedAt: null
+    });
+    addLog('permissions', 'create', disp, `Scope: ${scope}`);
+    showToast(`"${disp}" created`);
+  }
+  closeForm();
+}
+
+function saveOAuth(id) {
+  const name = document.getElementById('f_oname').value.trim();
+  const uris = document.getElementById('f_ouri').value.trim().split('\n').filter(Boolean);
+  const status = document.getElementById('f_ostatus').value;
+  const cls = document.getElementById('f_oclass').value;
+  const scopes = [...document.querySelectorAll('#f_oname').closest('.form-card-body').querySelectorAll('input[type="checkbox"]:checked')].map(cb => cb.value);
+  if (!name || !uris.length) return showToast('Name and redirect URI required', 'error');
+  if (id) {
+    const a = State.data.oauthApps.find(x => x.id === id);
+    Object.assign(a, { name, redirectUris: uris, status, classification: cls, scopes });
+    addLog('oauth', 'update', name, `Status: ${status}`);
+    showToast(`"${name}" updated`);
+  } else {
+    const cid = `cli_${name.toLowerCase().replace(/\s+/g,'_')}_${Math.random().toString(36).substr(2,8)}`;
+    State.data.oauthApps.push({
+      id: genId('oauth'), name, clientId: cid, redirectUris: uris, scopes, status, classification: cls,
+      createdAt: new Date().toISOString(), deletedAt: null
+    });
+    addLog('oauth', 'create', name, `Client: ${cid}`);
+    showToast(`"${name}" registered`);
+  }
+  closeForm();
+  renderNav();
+}
+
+function archiveUser(id) {
+  const u = State.data.users.find(x => x.id === id);
+  if (!u) return;
+  if (confirm(`Archive "${u.name}"? This is a soft delete.`)) {
+    u.deletedAt = new Date().toISOString();
+    addLog('users', 'delete', u.name, 'User archived');
+    showToast(`"${u.name}" archived`, 'warning');
+    closeForm();
+    renderNav();
+  }
+}
+
+function archiveRole(id) {
+  const r = State.data.roles.find(x => x.id === id);
+  if (!r) return;
+  if (getUserCountForRole(r.id) > 0) return showToast('Cannot archive: users assigned', 'error');
+  if (confirm(`Archive "${r.name}"?`)) {
+    r.deletedAt = new Date().toISOString();
+    addLog('roles', 'delete', r.name, 'Role archived');
+    showToast(`"${r.name}" archived`, 'warning');
+    closeForm();
+    renderNav();
+  }
+}
+
+function archivePerm(id) {
+  const p = State.data.permissions.find(x => x.id === id);
+  if (!p) return;
+  if (confirm(`Archive "${p.displayName}"?`)) {
+    p.deletedAt = new Date().toISOString();
+    addLog('permissions', 'delete', p.displayName, 'Permission archived');
+    showToast(`"${p.displayName}" archived`, 'warning');
+    closeForm();
+  }
+}
+
+function archiveOAuth(id) {
+  const a = State.data.oauthApps.find(x => x.id === id);
+  if (!a) return;
+  if (confirm(`Archive "${a.name}"?`)) {
+    a.deletedAt = new Date().toISOString();
+    addLog('oauth', 'delete', a.name, 'OAuth app archived');
+    showToast(`"${a.name}" archived`, 'warning');
+    closeForm();
+    renderNav();
+  }
+}
+
+// =====================================================
+// INIT
+// =====================================================
+renderNav();
+render();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && State.formMode) closeForm();
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('globalSearch').focus(); }
+});
+</script>
+</body>
+</html>

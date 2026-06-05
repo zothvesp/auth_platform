@@ -1,0 +1,95 @@
+[package]
+name = "authforge-backend"
+version = "0.1.0"
+edition = "2021"
+description = "AuthForge Authentication & Identity Platform Backend"
+
+[[bin]]
+name = "authforge"
+path = "src/main.rs"
+
+# ── Pinned transitive deps — all tested against Rust 1.75.0 ──────────────────
+# These pins prevent cargo from resolving newer versions that require Rust 1.81+.
+# See CLAUDE.md §12 for the MSRV policy.
+[dependencies]
+base64ct      = "=1.6.0"
+time          = "=0.3.36"
+time-core     = "=0.1.2"
+tokio-stream  = "=0.1.14"
+crc           = "=3.0.1"
+indexmap      = "=2.2.6"
+hashbrown     = "=0.14.3"
+url           = "=2.4.1"
+idna          = "=0.4.0"
+
+# ── Async runtime ─────────────────────────────────────────────────────────────
+tokio         = { version = "=1.35.1", features = ["full"] }
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+axum          = { version = "=0.7.4",  features = ["macros"] }
+tower         = { version = "=0.4.13", features = ["full"] }
+tower-http    = { version = "=0.5.1",  features = ["cors", "trace", "request-id", "timeout"] }
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlx          = { version = "=0.7.3",   features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
+
+# ── Cache / sessions ──────────────────────────────────────────────────────────
+redis         = { version = "=0.23.0",  features = ["tokio-comp", "connection-manager"] }
+
+# ── Auth & crypto ─────────────────────────────────────────────────────────────
+jsonwebtoken  = "=9.2.0"
+argon2        = "=0.5.2"
+sha2          = "=0.10.8"
+hex           = "=0.4.3"
+rand          = "=0.8.5"
+base64        = "=0.21.7"
+
+# ── Serialization ─────────────────────────────────────────────────────────────
+serde         = { version = "=1.0.193", features = ["derive"] }
+serde_json    = "=1.0.108"
+
+# ── Types ─────────────────────────────────────────────────────────────────────
+uuid          = { version = "=1.6.1",  features = ["v4", "serde"] }
+chrono        = { version = "=0.4.31", features = ["serde"] }
+
+# ── Validation ────────────────────────────────────────────────────────────────
+validator     = { version = "=0.16.1", features = ["derive"] }
+
+# ── Config ────────────────────────────────────────────────────────────────────
+dotenvy       = "=0.15.7"
+
+# ── Async traits ──────────────────────────────────────────────────────────────
+async-trait   = "=0.1.74"
+
+# ── Error handling ────────────────────────────────────────────────────────────
+thiserror     = "=1.0.50"
+anyhow        = "=1.0.75"
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+tracing       = "=0.1.40"
+tracing-subscriber = { version = "=0.3.18", features = ["env-filter", "json"] }
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+lettre        = { version = "=0.10.4", features = ["smtp-transport", "tokio1-rustls-tls", "builder"], default-features = false }
+
+# ── MFA / TOTP ────────────────────────────────────────────────────────────────
+totp-rs       = "=5.4.0"
+
+# ── OAuth 2.0 ─────────────────────────────────────────────────────────────────
+oauth2        = "=4.4.2"
+
+# ── HTTP client (OAuth callbacks) ─────────────────────────────────────────────
+reqwest       = { version = "=0.11.27", features = ["json", "rustls-tls"], default-features = false }
+
+[dev-dependencies]
+tokio = { version = "=1.35.1", features = ["full", "test-util"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[[bin]]
+name = "seed"
+path = "src/bin/seed.rs"
