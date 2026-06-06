@@ -4,6 +4,8 @@ import React from "react";
 import { AppProviders } from "./providers";
 import "../styles/global.css";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "OPSCTRL Auth Platform",
   description: "Authentication and authorization admin console",

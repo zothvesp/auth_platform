@@ -2,10 +2,9 @@
 
 import { MantineProvider } from "@mantine/core";
 import { NotificationsProvider } from "@mantine/notifications";
-import { DevtoolsProvider } from "@providers/devtools";
 import { authProviderClient } from "@providers/auth-provider/auth-provider.client";
 import { dataProvider } from "@providers/data-provider";
-import { GitHubBanner, Refine } from "@refinedev/core";
+import { Refine } from "@refinedev/core";
 import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
 import routerProvider from "@refinedev/nextjs-router";
 import { notificationProvider } from "@refinedev/mantine";
@@ -91,58 +90,55 @@ export const AppProviders = ({ children }: AppProvidersProps) => {
       }}
     >
       <NotificationsProvider position="bottom-right">
-        <GitHubBanner />
         <RefineKbarProvider>
-          <DevtoolsProvider>
-            <Refine
-              routerProvider={routerProvider}
-              dataProvider={dataProvider}
-              authProvider={authProviderClient}
-              notificationProvider={notificationProvider}
-              resources={[
-                {
-                  name: "users",
-                  list: "/users",
-                  meta: {
-                    canDelete: true,
-                  },
+          <Refine
+            routerProvider={routerProvider}
+            dataProvider={dataProvider}
+            authProvider={authProviderClient}
+            notificationProvider={notificationProvider}
+            resources={[
+              {
+                name: "users",
+                list: "/users",
+                meta: {
+                  canDelete: true,
                 },
-                {
-                  name: "roles",
-                  list: "/roles",
-                  meta: {
-                    canDelete: true,
-                  },
+              },
+              {
+                name: "roles",
+                list: "/roles",
+                meta: {
+                  canDelete: true,
                 },
-                {
-                  name: "permissions",
-                  list: "/permissions",
+              },
+              {
+                name: "permissions",
+                list: "/permissions",
+              },
+              {
+                name: "audit_logs",
+                list: "/audit-logs",
+                meta: {
+                  label: "Audit Logs",
                 },
-                {
-                  name: "audit_logs",
-                  list: "/audit-logs",
-                  meta: {
-                    label: "Audit Logs",
-                  },
+              },
+              {
+                name: "settings",
+                list: "/settings",
+                meta: {
+                  canDelete: false,
                 },
-                {
-                  name: "settings",
-                  list: "/settings",
-                  meta: {
-                    canDelete: false,
-                  },
-                },
-              ]}
-              options={{
-                syncWithLocation: true,
-                warnWhenUnsavedChanges: true,
-                projectId: "HnwG15-dMguGL-ooxoZM",
-              }}
-            >
-              {children}
-              <RefineKbar />
-            </Refine>
-          </DevtoolsProvider>
+              },
+            ]}
+            options={{
+              syncWithLocation: true,
+              warnWhenUnsavedChanges: true,
+              projectId: "HnwG15-dMguGL-ooxoZM",
+            }}
+          >
+            {children}
+            <RefineKbar />
+          </Refine>
         </RefineKbarProvider>
       </NotificationsProvider>
     </MantineProvider>

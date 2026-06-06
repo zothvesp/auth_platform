@@ -33,7 +33,7 @@ export const TransferList = ({
   const [selectedQuery, setSelectedQuery] = useState("");
   const [checkedAvailable, setCheckedAvailable] = useState<string[]>([]);
   const [checkedSelected, setCheckedSelected] = useState<string[]>([]);
-  const selectedSet = new Set(value);
+  const selectedSet = useMemo(() => new Set(value), [value]);
 
   const availableItems = useMemo(
     () =>
@@ -117,7 +117,11 @@ export const TransferList = ({
         setAvailableQuery,
       )}
       <Stack justify="center" align="center" spacing="xs" sx={{ flexGrow: 0 }}>
-        <AppButton icon={<IconArrowRight size={15} />} onClick={moveToSelected} disabled={!checkedAvailable.length}>
+        <AppButton
+          icon={<IconArrowRight size={15} />}
+          onClick={moveToSelected}
+          disabled={!checkedAvailable.length}
+        >
           Add
         </AppButton>
         <AppButton
