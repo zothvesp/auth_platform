@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  Avatar,
   Box,
-  Button,
   Divider,
   Group,
   Navbar,
@@ -13,12 +11,11 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
-import { useLogout, useMenu } from "@refinedev/core";
+import { useMenu } from "@refinedev/core";
 import {
   IconAdjustments,
   IconClipboardList,
   IconDatabase,
-  IconLogout,
   IconLockAccess,
   IconKey,
   IconShield,
@@ -26,10 +23,6 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { AuthUser } from "@lib/auth-api";
-import { useTranslations } from "@lib/i18n";
-import { apiRequest } from "@lib/request";
 
 const icons: Record<string, React.ReactNode> = {
   audit_logs: <IconClipboardList size={16} />,
@@ -42,16 +35,7 @@ const icons: Record<string, React.ReactNode> = {
 };
 
 export const Menu = () => {
-  const { mutate: logout } = useLogout();
   const { menuItems, selectedKey } = useMenu();
-  const t = useTranslations();
-  const [user, setUser] = useState<AuthUser>();
-
-  useEffect(() => {
-    apiRequest<AuthUser>("/users/me")
-      .then(setUser)
-      .catch(() => {});
-  }, []);
 
   return (
     <Navbar width={{ base: 260 }} p="sm">
@@ -91,22 +75,15 @@ export const Menu = () => {
                     width: "100%",
                     padding: `${theme.spacing.xs}px ${theme.spacing.sm}px`,
                     borderRadius: theme.radius.md,
-                    color:
-                      active
-                        ? theme.colors.cyan[theme.colorScheme === "dark" ? 3 : 7]
-                        : theme.colorScheme === "dark"
-                          ? theme.colors.gray[5]
-                          : theme.colors.gray[7],
+                    color: active
+                      ? theme.colors.cyan[3]
+                      : theme.colors.gray[5],
                     backgroundColor: active
-                      ? theme.fn.rgba(
-                          theme.colors.cyan[theme.colorScheme === "dark" ? 8 : 1],
-                          theme.colorScheme === "dark" ? 0.25 : 0.7,
-                        )
+                      ? theme.fn.rgba(theme.colors.cyan[8], 0.25)
                       : "transparent",
                     "&:hover": {
-                      backgroundColor:
-                        theme.colorScheme === "dark" ? theme.colors.dark[5] : theme.colors.gray[1],
-                      color: theme.colorScheme === "dark" ? theme.white : theme.black,
+                      backgroundColor: theme.colors.dark[5],
+                      color: theme.white,
                     },
                   };
                 }}
@@ -119,35 +96,6 @@ export const Menu = () => {
             ))}
           </Stack>
         </ScrollArea>
-      </Navbar.Section>
-
-      <Navbar.Section>
-        <Divider my="sm" />
-        <Group position="apart" noWrap>
-          <Group spacing="sm" noWrap>
-            <Avatar radius="xl" color="cyan" size="sm">
-              {user?.displayName?.[0]?.toUpperCase() ?? "U"}
-            </Avatar>
-            <Box>
-              <Text size="xs" weight={600}>
-                {user?.displayName ?? "Loading..."}
-              </Text>
-              <Text size={10} color="dimmed">
-                {user?.roles?.[0]?.name ?? ""}
-              </Text>
-            </Box>
-          </Group>
-          <Button
-            size="xs"
-            compact
-            variant="subtle"
-            color="gray"
-            leftIcon={<IconLogout size={14} />}
-            onClick={() => logout()}
-          >
-            {t.common.logout}
-          </Button>
-        </Group>
       </Navbar.Section>
     </Navbar>
   );

@@ -4,6 +4,7 @@ import { AppShell, Box, Header, MediaQuery, Text } from "@mantine/core";
 import type { PropsWithChildren } from "react";
 import { Breadcrumb } from "../breadcrumb";
 import { Menu } from "../menu";
+import { HeaderContent } from "./header";
 
 export const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   return (
@@ -20,6 +21,7 @@ export const Layout: React.FC<PropsWithChildren> = ({ children }) => {
             </MediaQuery>
             <Breadcrumb />
             <Box sx={{ flex: 1 }} />
+            <HeaderContent />
           </Box>
         </Header>
       }

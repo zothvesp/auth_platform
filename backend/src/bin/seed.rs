@@ -36,6 +36,8 @@ async fn main() -> Result<()> {
     seed_roles(&pool).await?;
     seed_role_permissions(&pool).await?;
     seed_users(&pool).await?;
+    seed_oauth_apps(&pool).await?;
+    seed_demo_audit_data(&pool).await?;
 
     info!("✓ Seed complete");
     Ok(())
@@ -354,5 +356,179 @@ async fn seed_users(pool: &PgPool) -> Result<()> {
     info!("  │ viewer@authforge.dev      │ Admin@1234!  │ viewer       │");
     info!("  └─────────────────────────────────────────────────────────┘");
 
+    Ok(())
+}
+
+// ─── OAuth Apps ──────────────────────────────────────────────────────────────
+
+async fn seed_oauth_apps(pool: &PgPool) -> Result<()> {
+    info!("Seeding OAuth apps...");
+
+    type OAuthAppDef = (&'static str, &'static str, &'static str, &'static [&'static str], &'static [&'static str]);
+    let apps: &[OAuthAppDef] = &[
+        (
+            "authforge-admin",
+            "AuthForge Admin Console",
+            "Internal admin dashboard OAuth client",
+            &["http://localhost:3000/auth/callback/admin"],
+            &["authorization_code", "refresh_token"],
+        ),
+        (
+            "authforge-docs",
+            "AuthForge API Docs",
+            "Internal API documentation OAuth client",
+            &["http://localhost:3000/auth/callback/docs"],
+            &["authorization_code"],
+        ),
+    ];
+
+    for (client_id, name, description, redirect_uris, allowed_grants) in apps {
+        let exists: (bool,) = sqlx::query_as(
+            "SELECT EXISTS(SELECT 1 FROM oauth_apps WHERE client_id = $1)",
+        )
+        .bind(client_id)
+        .fetch_one(pool)
+        .await?;
+
+        if exists.0 {
+            info!("  {} already exists, skipping", client_id);
+            continue;
+        }
+
+        // Generate a random client secret and hash it
+        let secret: String = (0..48)
+            .map(|_| {
+                let bytes: [u8; 1] = rand::random();
+                format!("{:02x}", bytes[0])
+            })
+            .collect();
+        let secret_hash = {
+            use sha2::{Sha256, Digest};
+            let mut hasher = Sha256::new();
+            hasher.update(secret.as_bytes());
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, hasher.finalize())
+        };
+
+        sqlx::query(
+            "INSERT INTO oauth_apps (id, client_id, client_secret_hash, name, description,
+             redirect_uris, allowed_grants, allowed_scopes, pkce_required, is_active, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, ARRAY['openid','profile','email']::text[], true, true, NOW(), NOW())",
+        )
+        .bind(Uuid::new_v4())
+        .bind(client_id)
+        .bind(&secret_hash)
+        .bind(name)
+        .bind(description)
+        .bind(redirect_uris)
+        .bind(allowed_grants)
+        .execute(pool)
+        .await?;
+
+        info!("  ✓ {} — secret: {}", client_id, secret);
+    }
+
+    info!("");
+    info!("  OAuth client secrets (change in production!):");
+    info!("  ┌──────────────────────────────────────────────────────────────────┐");
+    info!("  │ authforge-admin  — see above for secret                         │");
+    info!("  │ authforge-docs   — see above for secret                         │");
+    info!("  └──────────────────────────────────────────────────────────────────┘");
+
+    Ok(())
+}
+
+// ─── Demo audit/login data ───────────────────────────────────────────────────
+
+async fn seed_demo_audit_data(pool: &PgPool) -> Result<()> {
+    info!("Seeding demo audit data...");
+
+    // Get the super_admin user
+    let user: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, email FROM users WHERE email = 'superadmin@authforge.dev' LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    let Some((user_id, user_email)) = user else {
+        info!("  No super_admin user found, skipping audit data");
+        return Ok(());
+    };
+
+    // Check if audit data already exists
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM login_history WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await?;
+
+    if count.0 > 0 {
+        info!("  Audit data already exists, skipping");
+        return Ok(());
+    }
+
+    // Seed login history (10 entries over the past week)
+    let ips = &[
+        "192.168.1.100",
+        "10.0.0.50",
+        "172.16.0.1",
+        "192.168.1.100",
+        "10.0.0.50",
+        "192.168.1.100",
+        "172.16.0.1",
+        "192.168.1.100",
+        "10.0.0.50",
+        "192.168.1.100",
+    ];
+    let agents = &[
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    ];
+
+    for (i, (ip, agent)) in ips.iter().zip(agents.iter().cycle()).enumerate() {
+        let hours_ago = (i * 16) as i64; // Spread over ~7 days
+        let ts = Utc::now() - chrono::Duration::hours(hours_ago);
+
+        sqlx::query(
+            "INSERT INTO login_history (id, user_id, ip_address, user_agent, success, auth_method, created_at)
+             VALUES ($1, $2, $3, $4, true, 'password', $5)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(user_id)
+        .bind(ip)
+        .bind(agent)
+        .bind(ts)
+        .execute(pool)
+        .await?;
+    }
+
+    // Seed audit logs (5 entries)
+    let actions = &[
+        ("user", "login", true),
+        ("user", "update", true),
+        ("role", "assign", true),
+        ("settings", "update", true),
+        ("user", "login", true),
+    ];
+
+    for (i, (resource, action, success)) in actions.iter().enumerate() {
+        let hours_ago = (i * 12) as i64;
+        let ts = Utc::now() - chrono::Duration::hours(hours_ago);
+
+        sqlx::query(
+            "INSERT INTO audit_logs (id, user_id, user_email, action, resource, ip_address, user_agent, success, created_at)
+             VALUES ($1, $2, $3, $4, $5, '192.168.1.100', 'Mozilla/5.0', $6, $7)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(user_id)
+        .bind(&user_email)
+        .bind(action)
+        .bind(resource)
+        .bind(success)
+        .bind(ts)
+        .execute(pool)
+        .await?;
+    }
+
+    info!("  ✓ 10 login history entries, 5 audit log entries seeded");
     Ok(())
 }

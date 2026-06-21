@@ -15,17 +15,28 @@ pub async fn validate_content_type(request: Request<Body>, next: Next) -> Respon
             .headers()
             .get(header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
+            .map(|s| s.to_string());
 
-        if !content_type.starts_with("application/json") {
-            return (
-                StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                axum::Json(serde_json::json!({
-                    "code": "INVALID_CONTENT_TYPE",
-                    "message": "Content-Type must be application/json",
-                })),
-            )
-                .into_response();
+        let content_length = request
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        // Only enforce Content-Type when there IS a body
+        if content_length > 0 {
+            let ct = content_type.as_deref().unwrap_or("");
+            if !ct.starts_with("application/json") {
+                return (
+                    StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                    axum::Json(serde_json::json!({
+                        "code": "INVALID_CONTENT_TYPE",
+                        "message": "Content-Type must be application/json",
+                    })),
+                )
+                    .into_response();
+            }
         }
     }
 
