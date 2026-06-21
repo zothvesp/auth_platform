@@ -117,10 +117,128 @@ pub async fn delete_role(state: &AppState, role_id: Uuid) -> AppResult<()> {
     RoleRepository::new(&state.db.pool).delete(role_id).await
 }
 
+pub async fn update_role(
+    state: &AppState,
+    role_id: Uuid,
+    description: Option<&str>,
+    permission_ids: Option<Vec<Uuid>>,
+) -> AppResult<(Role, Vec<Permission>)> {
+    // Verify role exists
+    let _role = RoleRepository::new(&state.db.pool).get(role_id).await?;
+
+    let pool = &state.db.pool;
+    let mut tx = pool.begin().await?;
+
+    if let Some(desc) = description {
+        RoleRepository::update_description(&mut *tx, role_id, desc).await?;
+    }
+
+    if let Some(perm_ids) = permission_ids {
+        RoleRepository::remove_all_permissions(&mut *tx, role_id).await?;
+        for perm_id in perm_ids {
+            RoleRepository::assign_permission(&mut *tx, role_id, perm_id).await?;
+        }
+    }
+
+    tx.commit().await?;
+
+    let updated_role = RoleRepository::new(pool).get(role_id).await?;
+    let permissions = RoleRepository::new(pool).find_permissions(role_id).await?;
+
+    Ok((updated_role, permissions))
+}
+
+pub async fn get_role_permissions(state: &AppState, role_id: Uuid) -> AppResult<Vec<Permission>> {
+    RoleRepository::new(&state.db.pool).find_permissions(role_id).await
+}
+
+pub async fn assign_permission(
+    state: &AppState,
+    role_id: Uuid,
+    permission_id: Uuid,
+) -> AppResult<()> {
+    // Verify role exists
+    RoleRepository::new(&state.db.pool).get(role_id).await?;
+    // Verify permission exists
+    PermissionRepository::new(&state.db.pool).get(permission_id).await?;
+    // Assign
+    RoleRepository::assign_permission(&state.db.pool, role_id, permission_id).await
+}
+
+pub async fn remove_permission(
+    state: &AppState,
+    role_id: Uuid,
+    permission_id: Uuid,
+) -> AppResult<()> {
+    RoleRepository::remove_permission(&state.db.pool, role_id, permission_id).await
+}
+
+pub fn validate_role_name(name: &str) -> AppResult<()> {
+    if name.len() < 2
+        || name.len() > 50
+        || !name.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+    {
+        let mut d = std::collections::HashMap::new();
+        d.insert(
+            "name".to_string(),
+            vec!["Role name must be 2-50 lowercase letters/underscores".to_string()],
+        );
+        return Err(AppError::Validation(d));
+    }
+    Ok(())
+}
+
 // ─── Permission management ────────────────────────────────────────────────────
 
 pub async fn list_permissions(state: &AppState) -> AppResult<Vec<Permission>> {
     PermissionRepository::new(&state.db.pool).find_all().await
+}
+
+pub async fn get_permission(state: &AppState, permission_id: Uuid) -> AppResult<Permission> {
+    PermissionRepository::new(&state.db.pool).get(permission_id).await
+}
+
+pub async fn create_permission(
+    state: &AppState,
+    resource: &str,
+    action: &str,
+    description: &str,
+) -> AppResult<Permission> {
+    validate_permission_field("resource", resource)?;
+    validate_permission_field("action", action)?;
+    PermissionRepository::create(&state.db.pool, resource, action, description).await
+}
+
+pub async fn update_permission(
+    state: &AppState,
+    permission_id: Uuid,
+    resource: &str,
+    action: &str,
+    description: &str,
+) -> AppResult<Permission> {
+    validate_permission_field("resource", resource)?;
+    validate_permission_field("action", action)?;
+    PermissionRepository::new(&state.db.pool).get(permission_id).await?;
+    PermissionRepository::update(&state.db.pool, permission_id, resource, action, description).await
+}
+
+pub async fn delete_permission(state: &AppState, permission_id: Uuid) -> AppResult<()> {
+    PermissionRepository::new(&state.db.pool).delete(permission_id).await
+}
+
+fn validate_permission_field(field: &str, value: &str) -> AppResult<()> {
+    if value.len() < 2 || !value.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
+        let mut d = std::collections::HashMap::new();
+        d.insert(
+            field.to_string(),
+            vec![format!(
+                "{} must be 2+ lowercase letters/underscores",
+                field
+            )],
+        );
+        return Err(AppError::Validation(d));
+    }
+    Ok(())
 }
 
 // ─── Seed default roles and permissions ───────────────────────────────────────
@@ -231,4 +349,31 @@ async fn assign_role_permissions(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_role_name;
+
+    #[test]
+    fn test_validate_role_name_valid() {
+        assert!(validate_role_name("admin").is_ok());
+        assert!(validate_role_name("super_admin").is_ok());
+        assert!(validate_role_name("ab").is_ok());
+        assert!(validate_role_name("a_very_long_but_valid_role_name").is_ok());
+    }
+
+    #[test]
+    fn test_validate_role_name_too_short() {
+        assert!(validate_role_name("a").is_err());
+        assert!(validate_role_name("").is_err());
+    }
+
+    #[test]
+    fn test_validate_role_name_invalid_chars() {
+        assert!(validate_role_name("Admin").is_err());
+        assert!(validate_role_name("admin-role").is_err());
+        assert!(validate_role_name("admin role").is_err());
+        assert!(validate_role_name("admin123").is_err());
+    }
 }

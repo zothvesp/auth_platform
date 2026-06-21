@@ -1,6 +1,13 @@
+pub mod admin;
+pub mod audit;
 pub mod auth;
 pub mod config;
 pub mod email;
+pub mod gdpr;
 pub mod mfa;
 pub mod oauth;
+pub mod oauth_apps;
+pub mod oauth_provider;
 pub mod rbac;
+pub mod saml;
+pub mod session;

@@ -61,6 +61,7 @@ pub mod keys {
     pub const REQUIRE_EMAIL_VERIFICATION: &str = "auth.require_email_verification";
     pub const ALLOW_REGISTRATION: &str = "auth.allow_registration";
 
+    pub const PASSWORD_HASH_COST: &str = "password.hash_cost";
     pub const PASSWORD_MIN_LENGTH: &str = "password.min_length";
     pub const PASSWORD_REQUIRE_UPPERCASE: &str = "password.require_uppercase";
     pub const PASSWORD_REQUIRE_LOWERCASE: &str = "password.require_lowercase";

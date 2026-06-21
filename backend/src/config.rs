@@ -9,8 +9,10 @@ pub struct AppConfig {
     pub redis_url: String,
 
     // JWT
-    pub jwt_private_key: String, // RS256 PEM private key
-    pub jwt_public_key: String,  // RS256 PEM public key
+    pub jwt_private_key: String,  // RS256 PEM private key
+    pub jwt_public_key: String,   // RS256 PEM public key
+    pub jwt_private_key_previous: Option<String>, // previous private key for rotation
+    pub jwt_public_key_previous: Option<String>,  // previous public key for rotation
     pub jwt_access_expiry_secs: u64,
     pub jwt_refresh_expiry_secs: u64,
 
@@ -71,6 +73,12 @@ impl AppConfig {
                 env::var("JWT_PUBLIC_KEY_PATH").unwrap_or_else(|_| "./keys/public.pem".to_string()),
             )
             .context("Failed to read JWT_PUBLIC_KEY_PATH — run `make keys` to generate")?,
+            jwt_private_key_previous: env::var("JWT_PRIVATE_KEY_PREVIOUS_PATH")
+                .ok()
+                .and_then(|path| std::fs::read_to_string(path).ok()),
+            jwt_public_key_previous: env::var("JWT_PUBLIC_KEY_PREVIOUS_PATH")
+                .ok()
+                .and_then(|path| std::fs::read_to_string(path).ok()),
             jwt_access_expiry_secs: env::var("JWT_ACCESS_EXPIRY_SECS")
                 .unwrap_or_else(|_| "900".to_string()) // 15 minutes
                 .parse()
@@ -87,7 +95,7 @@ impl AppConfig {
                 .unwrap_or(false),
 
             allowed_origins: env::var("ALLOWED_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:5173".to_string())
+                .unwrap_or_else(|_| "http://localhost:3000".to_string())
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
@@ -102,7 +110,7 @@ impl AppConfig {
             microsoft_tenant_id: env::var("MICROSOFT_TENANT_ID")
                 .unwrap_or_else(|_| "common".to_string()),
             oauth_redirect_base: env::var("OAUTH_REDIRECT_BASE")
-                .unwrap_or_else(|_| "http://localhost:5173/auth/callback".to_string()),
+                .unwrap_or_else(|_| "http://localhost:3000/auth/callback".to_string()),
 
             // Email
             smtp_host: env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".to_string()),
@@ -115,7 +123,7 @@ impl AppConfig {
             smtp_from: env::var("SMTP_FROM")
                 .unwrap_or_else(|_| "noreply@authforge.dev".to_string()),
             app_base_url: env::var("APP_BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:5173".to_string()),
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
 
             // Security
             bcrypt_cost: env::var("ARGON2_COST")

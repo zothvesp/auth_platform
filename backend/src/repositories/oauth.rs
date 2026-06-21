@@ -61,6 +61,31 @@ impl OAuthRepository<'_> {
         .fetch_all(self.pool)
         .await?)
     }
+
+    pub async fn delete_by_user_and_provider(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> AppResult<()> {
+        sqlx::query("DELETE FROM oauth_accounts WHERE user_id = $1 AND provider = $2")
+            .bind(user_id)
+            .bind(provider)
+            .execute(self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_by_user<'e, E: sqlx::PgExecutor<'e>>(
+        exec: E,
+        user_id: Uuid,
+    ) -> AppResult<()> {
+        sqlx::query("DELETE FROM oauth_accounts WHERE user_id = $1")
+            .bind(user_id)
+            .execute(exec)
+            .await?;
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
     pub async fn upsert<'e, E: sqlx::PgExecutor<'e>>(
         exec: E,
         user_id: Uuid,

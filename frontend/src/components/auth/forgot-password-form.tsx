@@ -4,9 +4,11 @@ import { Stack, Text } from "@mantine/core";
 import { useForgotPassword } from "@refinedev/core";
 import { useState } from "react";
 import { AppTextInput, InlineAlert, SaveButton } from "@components/ui";
+import { useTranslations } from "@lib/i18n";
 import { AuthLink, AuthShell } from "./auth-shell";
 
 export const ForgotPasswordForm = () => {
+  const t = useTranslations();
   const forgotPassword = useForgotPassword<{ email: string }>();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -16,9 +18,9 @@ export const ForgotPasswordForm = () => {
 
   return (
     <AuthShell
-      title="Reset password"
-      description="Enter your email and we will send reset instructions if the account exists."
-      footer={<AuthLink href="/login">Back to sign in</AuthLink>}
+      title={t.auth.resetPasswordTitle}
+      description={t.auth.resetPasswordDesc}
+      footer={<AuthLink href="/login">{t.auth.backToSignIn}</AuthLink>}
     >
       <form
         onSubmit={(event) => {
@@ -29,12 +31,12 @@ export const ForgotPasswordForm = () => {
         <Stack spacing="md">
           {submitted ? (
             <InlineAlert tone="success">
-              If that email exists, a reset link has been sent.
+              {t.auth.resetLinkSent}
             </InlineAlert>
           ) : null}
           {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
           <AppTextInput
-            label="Email"
+            label={t.forms.email}
             type="email"
             autoComplete="email"
             required
@@ -43,7 +45,7 @@ export const ForgotPasswordForm = () => {
           />
           <SaveButton loading={forgotPassword.isPending}>Send reset link</SaveButton>
           <Text size="xs" color="dimmed">
-            For security, the backend returns the same response whether or not the email exists.
+            {t.auth.securityNote}
           </Text>
         </Stack>
       </form>

@@ -1,6 +1,6 @@
 use crate::{error::AppResult, models::AuditLog, repositories::base::BaseRepository};
 use chrono::Utc;
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -41,6 +41,7 @@ impl BaseRepository for AuditRepository<'_> {
 }
 
 impl AuditRepository<'_> {
+    #[allow(clippy::too_many_arguments)]
     pub async fn create<'e, E: sqlx::PgExecutor<'e>>(
         exec: E,
         user_id: Option<Uuid>,
@@ -92,4 +93,36 @@ impl AuditRepository<'_> {
         };
         Ok((logs, total))
     }
+}
+
+pub fn parse_user_agent(ua: &str) -> Value {
+    let browser = if ua.contains("Edg/") {
+        "Edge"
+    } else if ua.contains("OPR/") || ua.contains("Opera") {
+        "Opera"
+    } else if ua.contains("Chrome") && !ua.contains("Edg/") {
+        "Chrome"
+    } else if ua.contains("Firefox") {
+        "Firefox"
+    } else if ua.contains("Safari") && !ua.contains("Chrome") {
+        "Safari"
+    } else {
+        "Unknown"
+    };
+
+    let os = if ua.contains("Windows") {
+        "Windows"
+    } else if ua.contains("Mac OS") || ua.contains("Macintosh") {
+        "macOS"
+    } else if ua.contains("Linux") && !ua.contains("Android") {
+        "Linux"
+    } else if ua.contains("Android") {
+        "Android"
+    } else if ua.contains("iPhone") || ua.contains("iPad") {
+        "iOS"
+    } else {
+        "Unknown"
+    };
+
+    json!({ "browser": browser, "os": os })
 }

@@ -1,6 +1,6 @@
 use axum::{
     extract::{Json, Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
@@ -11,19 +11,25 @@ use uuid::Uuid;
 use crate::{
     error::AppResult,
     middleware::auth::AuthUser,
-    repositories::{base::BaseRepository, PermissionRepository},
-    services,
+    services::{audit, rbac},
     state::AppState,
 };
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_permissions).post(create_permission))
-        .route("/:id", get(get_permission).delete(delete_permission))
+        .route("/:id", get(get_permission).put(update_permission).delete(delete_permission))
 }
 
 #[derive(Deserialize)]
 pub struct CreatePermissionRequest {
+    pub resource: String,
+    pub action: String,
+    pub description: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdatePermissionRequest {
     pub resource: String,
     pub action: String,
     pub description: String,
@@ -34,7 +40,7 @@ pub async fn list_permissions(
     auth: AuthUser,
 ) -> AppResult<impl IntoResponse> {
     auth.require_permission("permissions:read")?;
-    Ok(Json(services::rbac::list_permissions(&state).await?))
+    Ok(Json(rbac::list_permissions(&state).await?))
 }
 
 pub async fn get_permission(
@@ -43,46 +49,63 @@ pub async fn get_permission(
     Path(id): Path<Uuid>,
 ) -> AppResult<impl IntoResponse> {
     auth.require_permission("permissions:read")?;
-    Ok(Json(
-        PermissionRepository::new(&state.db.pool).get(id).await?,
-    ))
+    Ok(Json(rbac::get_permission(&state, id).await?))
 }
 
 pub async fn create_permission(
     State(state): State<AppState>,
     auth: AuthUser,
+    headers: HeaderMap,
     Json(req): Json<CreatePermissionRequest>,
 ) -> AppResult<impl IntoResponse> {
     auth.require_permission("permissions:manage")?;
-    validate_permission_field("resource", &req.resource)?;
-    validate_permission_field("action", &req.action)?;
-    let perm =
-        PermissionRepository::create(&state.db.pool, &req.resource, &req.action, &req.description)
-            .await?;
+    let perm = rbac::create_permission(&state, &req.resource, &req.action, &req.description).await?;
+
+    audit::record(
+        &state, Some(auth.user_id), Some(&auth.email),
+        "permission.create", "permission", Some(&perm.id.to_string()),
+        &crate::utils::extract_ip(&headers), &crate::utils::extract_ua(&headers),
+        true, Some(serde_json::json!({ "resource": req.resource, "action": req.action })),
+    ).await;
+
     Ok((StatusCode::CREATED, Json(perm)))
+}
+
+pub async fn update_permission(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdatePermissionRequest>,
+) -> AppResult<impl IntoResponse> {
+    auth.require_permission("permissions:manage")?;
+    let perm = rbac::update_permission(&state, id, &req.resource, &req.action, &req.description).await?;
+
+    audit::record(
+        &state, Some(auth.user_id), Some(&auth.email),
+        "permission.update", "permission", Some(&id.to_string()),
+        &crate::utils::extract_ip(&headers), &crate::utils::extract_ua(&headers),
+        true, Some(serde_json::json!({ "resource": req.resource, "action": req.action })),
+    ).await;
+
+    Ok(Json(perm))
 }
 
 pub async fn delete_permission(
     State(state): State<AppState>,
     auth: AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> AppResult<impl IntoResponse> {
     auth.require_permission("permissions:manage")?;
-    PermissionRepository::new(&state.db.pool).delete(id).await?;
-    Ok(StatusCode::NO_CONTENT)
-}
+    rbac::delete_permission(&state, id).await?;
 
-fn validate_permission_field(field: &str, value: &str) -> crate::error::AppResult<()> {
-    if value.len() < 2 || !value.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
-        let mut d = std::collections::HashMap::new();
-        d.insert(
-            field.to_string(),
-            vec![format!(
-                "{} must be 2+ lowercase letters/underscores",
-                field
-            )],
-        );
-        return Err(crate::error::AppError::Validation(d));
-    }
-    Ok(())
+    audit::record(
+        &state, Some(auth.user_id), Some(&auth.email),
+        "permission.delete", "permission", Some(&id.to_string()),
+        &crate::utils::extract_ip(&headers), &crate::utils::extract_ua(&headers),
+        true, None,
+    ).await;
+
+    Ok(StatusCode::NO_CONTENT)
 }

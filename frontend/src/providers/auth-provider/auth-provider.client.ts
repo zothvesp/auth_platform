@@ -1,5 +1,6 @@
 "use client";
 
+import { showNotification } from "@mantine/notifications";
 import type { AuthProvider } from "@refinedev/core";
 import Cookies from "js-cookie";
 import {
@@ -13,7 +14,7 @@ import {
   pendingMfaLoginKey,
 } from "@lib/auth-api";
 
-const setSession = (session: Awaited<ReturnType<typeof authApi.login>>) => {
+export const setAuthSession = (session: Awaited<ReturnType<typeof authApi.login>>) => {
   sessionStorage.removeItem(pendingMfaLoginKey);
   Cookies.set(authSessionCookieName, encodeSession(session), {
     expires: new Date(session.tokens.expiresAt * 1000),
@@ -47,7 +48,7 @@ export const authProviderClient: AuthProvider = {
         password,
         rememberMe: Boolean(rememberMe),
       });
-      setSession(session);
+      setAuthSession(session);
       return {
         success: true,
         redirectTo: "/",
@@ -97,7 +98,7 @@ export const authProviderClient: AuthProvider = {
   register: async ({ displayName, email, password }) => {
     try {
       const session = await authApi.register({ displayName, email, password });
-      setSession(session);
+      setAuthSession(session);
       return {
         success: true,
         redirectTo: "/",
@@ -154,6 +155,10 @@ export const authProviderClient: AuthProvider = {
   },
   onError: async (error) => {
     if (error.response?.status === 401) {
+      showNotification({
+        message: "Your session has expired. Please sign in again.",
+        color: "yellow",
+      });
       return {
         logout: true,
       };

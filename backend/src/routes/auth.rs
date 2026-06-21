@@ -131,8 +131,16 @@ pub async fn register(
     }
 
     let ip = extract_ip(&headers);
-    let (user, access_token, refresh_token) =
-        services::auth::register(&state, &req.email, &req.display_name, &req.password, &ip).await?;
+    let ua = extract_ua(&headers);
+    let (user, access_token, refresh_token) = services::auth::register(
+        &state,
+        &req.email,
+        &req.display_name,
+        &req.password,
+        &ip,
+        &ua,
+    )
+    .await?;
 
     let expires_in = services::config::jwt_access_expiry_secs(&state).await;
     Ok(auth_response(user, access_token, refresh_token, expires_in, &state).await)
@@ -156,6 +164,20 @@ pub async fn login(
     )
     .await?;
 
+    services::audit::record(
+        &state,
+        Some(user.id),
+        Some(&user.email),
+        "auth.login",
+        "auth",
+        None,
+        &ip,
+        &ua,
+        true,
+        None,
+    )
+    .await;
+
     let expires_in = services::config::jwt_access_expiry_secs(&state).await;
     Ok(auth_response(user, access_token, refresh_token, expires_in, &state).await)
 }
@@ -163,12 +185,32 @@ pub async fn login(
 pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
-    _auth: Option<AuthUser>,
+    auth: Option<AuthUser>,
 ) -> AppResult<impl IntoResponse> {
+    let ip = extract_ip(&headers);
+    let ua = extract_ua(&headers);
+
     // Extract refresh token from cookie header
     if let Some(token) = extract_refresh_cookie(&headers) {
         services::auth::logout(&state, &token).await.ok();
     }
+
+    if let Some(ref user) = auth {
+        services::audit::record(
+            &state,
+            Some(user.user_id),
+            Some(&user.email),
+            "auth.logout",
+            "auth",
+            None,
+            &ip,
+            &ua,
+            true,
+            None,
+        )
+        .await;
+    }
+
     Ok((
         StatusCode::NO_CONTENT,
         [(header::SET_COOKIE, clear_cookie(&state))],
@@ -180,8 +222,10 @@ pub async fn refresh(
     headers: HeaderMap,
 ) -> AppResult<impl IntoResponse> {
     let token = extract_refresh_cookie(&headers).ok_or(AppError::Unauthorized)?;
+    let ip = extract_ip(&headers);
+    let ua = extract_ua(&headers);
     let (access_token, new_refresh, expires_in) =
-        services::auth::refresh_token(&state, &token).await?;
+        services::auth::refresh_token(&state, &token, &ip, &ua).await?;
 
     let cookie = make_refresh_cookie(&new_refresh, &state).await;
     let expires_at = chrono::Utc::now().timestamp() + expires_in as i64;
@@ -290,22 +334,11 @@ pub async fn mfa_disable(
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
 fn extract_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("x-forwarded-for")
-        .or_else(|| headers.get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
-        .unwrap_or("unknown")
-        .trim()
-        .to_string()
+    crate::utils::extract_ip(headers)
 }
 
 fn extract_ua(headers: &HeaderMap) -> String {
-    headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string()
+    crate::utils::extract_ua(headers)
 }
 
 fn extract_refresh_cookie(headers: &HeaderMap) -> Option<String> {
@@ -337,7 +370,7 @@ fn clear_cookie(state: &AppState) -> String {
     )
 }
 
-async fn auth_response(
+pub(crate) async fn auth_response(
     user: services::auth::UserDto,
     access_token: String,
     refresh_token: String,

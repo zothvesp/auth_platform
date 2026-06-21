@@ -34,14 +34,3 @@ pub struct LoginHistory {
 }
 
 impl_entity!(LoginHistory);
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct BackupCode {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub code_hash: String,
-    pub used_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl_entity!(BackupCode);

@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::{
     error::AppResult,
     middleware::auth::AuthUser,
-    repositories::{base::BaseRepository, UserRepository},
-    services,
+    repositories::{SessionRepository, UserRepository},
+    services::{admin, auth, gdpr, session},
     state::AppState,
 };
 
@@ -24,6 +24,12 @@ pub fn router() -> Router<AppState> {
         .route("/me/login-history", get(login_history))
         .route("/me/sessions", get(active_sessions))
         .route("/me/sessions/:id", delete(revoke_session))
+        // OAuth account linking
+        .route("/me/oauth-accounts", get(list_oauth_accounts))
+        .route("/me/oauth-accounts/:provider", delete(unlink_oauth_account))
+        // GDPR
+        .route("/me/export", get(export_my_data))
+        .route("/me/delete", delete(delete_my_account))
 }
 
 #[derive(Deserialize)]
@@ -41,7 +47,7 @@ pub struct ChangePasswordRequest {
 }
 
 pub async fn get_me(State(state): State<AppState>, auth: AuthUser) -> AppResult<impl IntoResponse> {
-    let dto = services::auth::build_user_dto(&state, auth.user_id).await?;
+    let dto = auth::build_user_dto(&state, auth.user_id).await?;
     Ok(Json(dto))
 }
 
@@ -50,12 +56,14 @@ pub async fn update_me(
     auth: AuthUser,
     Json(req): Json<UpdateMeRequest>,
 ) -> AppResult<impl IntoResponse> {
-    if let (Some(name), avatar) = (req.display_name.as_deref(), req.avatar_url.as_deref()) {
-        UserRepository::update_profile(&state.db.pool, auth.user_id, name, avatar).await?;
-    }
-    Ok(Json(
-        services::auth::build_user_dto(&state, auth.user_id).await?,
-    ))
+    let result = admin::update_user(
+        &state,
+        auth.user_id,
+        req.display_name.as_deref(),
+        req.avatar_url.as_deref(),
+    )
+    .await?;
+    Ok(Json(result))
 }
 
 pub async fn change_password(
@@ -63,23 +71,7 @@ pub async fn change_password(
     auth: AuthUser,
     Json(req): Json<ChangePasswordRequest>,
 ) -> AppResult<impl IntoResponse> {
-    let user = UserRepository::new(&state.db.pool)
-        .get(auth.user_id)
-        .await?;
-    services::auth::verify_password(
-        &req.current_password,
-        user.password_hash.as_deref().unwrap_or(""),
-    )?;
-    // Validate new password against DB policy
-    let policy = services::config::password_policy(&state).await;
-    let violations = policy.validate(&req.new_password);
-    if !violations.is_empty() {
-        let mut d = std::collections::HashMap::new();
-        d.insert("new_password".to_string(), violations);
-        return Err(crate::error::AppError::Validation(d));
-    }
-    let hash = services::auth::hash_password(&req.new_password)?;
-    UserRepository::update_password(&state.db.pool, auth.user_id, &hash).await?;
+    auth::change_password(&state, auth.user_id, &req.current_password, &req.new_password).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -94,18 +86,59 @@ pub async fn login_history(
 }
 
 pub async fn active_sessions(
-    State(_state): State<AppState>,
-    _auth: AuthUser,
+    State(state): State<AppState>,
+    auth: AuthUser,
 ) -> AppResult<impl IntoResponse> {
-    // Placeholder — sessions table managed separately
-    Ok(Json(serde_json::json!([])))
+    Ok(Json(
+        SessionRepository::new(&state.db.pool)
+            .find_active_by_user(auth.user_id)
+            .await?,
+    ))
 }
 
 pub async fn revoke_session(
-    State(_state): State<AppState>,
-    _auth: AuthUser,
-    Path(_session_id): Path<Uuid>,
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(session_id): Path<Uuid>,
 ) -> AppResult<impl IntoResponse> {
-    // Placeholder — revoke by deleting from sessions table
+    session::revoke(&state, auth.user_id, session_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn list_oauth_accounts(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> AppResult<impl IntoResponse> {
+    let accounts = crate::services::oauth::list_linked_accounts(&state, auth.user_id).await?;
+    Ok(Json(accounts))
+}
+
+pub async fn unlink_oauth_account(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(provider): Path<String>,
+) -> AppResult<impl IntoResponse> {
+    crate::services::oauth::unlink_account(&state, auth.user_id, &provider).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ─── GDPR ─────────────────────────────────────────────────────────────────────
+
+/// Export all data for the authenticated user (GDPR Article 20).
+pub async fn export_my_data(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> AppResult<impl IntoResponse> {
+    let data = gdpr::export_user_data(&state, auth.user_id).await?;
+    Ok(Json(data))
+}
+
+/// Soft-delete the authenticated user's account (GDPR Article 17).
+/// Anonymizes PII and revokes all sessions/tokens.
+pub async fn delete_my_account(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> AppResult<impl IntoResponse> {
+    gdpr::soft_delete_user(&state, auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

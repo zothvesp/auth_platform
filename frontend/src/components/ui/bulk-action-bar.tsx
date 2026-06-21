@@ -2,6 +2,7 @@
 
 import { Group, Paper, Text } from "@mantine/core";
 import type { ReactNode } from "react";
+import { useTranslations } from "@lib/i18n";
 import { AppButton } from "./button";
 
 type BulkActionBarProps = {
@@ -11,6 +12,7 @@ type BulkActionBarProps = {
 };
 
 export const BulkActionBar = ({ actions, onClear, selectedCount }: BulkActionBarProps) => {
+  const t = useTranslations();
   if (!selectedCount) return null;
 
   return (
@@ -22,7 +24,7 @@ export const BulkActionBar = ({ actions, onClear, selectedCount }: BulkActionBar
         {actions}
         {onClear ? (
           <AppButton appVariant="ghost" onClick={onClear}>
-            Clear
+            {t.common.clear}
           </AppButton>
         ) : null}
       </Group>

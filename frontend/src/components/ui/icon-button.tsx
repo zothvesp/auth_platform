@@ -9,7 +9,7 @@ export type AppIconButtonProps = ActionIconProps &
   icon: ReactNode;
 };
 
-export const AppIconButton = ({ label, icon, ...props }: AppIconButtonProps) => {
+export const AppIconButton = ({ label, icon, styles: userStyles, ...props }: AppIconButtonProps) => {
   return (
     <Tooltip label={label} withArrow>
       <ActionIcon
@@ -28,6 +28,7 @@ export const AppIconButton = ({ label, icon, ...props }: AppIconButtonProps) => 
               boxShadow: `0 0 0 2px ${theme.fn.rgba(theme.colors.cyan[4], 0.55)}`,
             },
           },
+          ...userStyles,
         })}
         {...props}
       >

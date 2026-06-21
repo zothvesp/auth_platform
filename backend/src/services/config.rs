@@ -98,6 +98,67 @@ pub async fn same_site_policy(state: &AppState) -> String {
         .unwrap_or_else(|| "Strict".to_string())
 }
 
+// ─── Admin config management ──────────────────────────────────────────────────
+
+pub async fn list_all_config(state: &AppState) -> crate::error::AppResult<std::collections::HashMap<String, String>> {
+    ConfigRepository::new(&state.db.pool).load_all().await
+}
+
+const BLOCKED_KEYS: &[&str] = &[
+    "jwt_private_key",
+    "jwt_public_key",
+    "jwt_private_key_previous",
+    "jwt_public_key_previous",
+    "smtp_password",
+    "google_client_secret",
+    "github_client_secret",
+    "microsoft_client_secret",
+];
+
+pub async fn update_config(state: &AppState, key: &str, value: &str) -> crate::error::AppResult<String> {
+    use crate::error::AppError;
+
+    // Safety: block setting secret values via the API (exact match)
+    if BLOCKED_KEYS.contains(&key) {
+        return Err(AppError::Forbidden);
+    }
+
+    ConfigRepository::set(&state.db.pool, key, value).await?;
+
+    ConfigRepository::new(&state.db.pool)
+        .get(key)
+        .await?
+        .ok_or_else(|| AppError::NotFound("config key".to_string()))
+}
+
+// ─── Password hashing ──────────────────────────────────────────────────────────
+
+pub async fn password_hash_cost(state: &AppState) -> u32 {
+    ConfigRepository::new(&state.db.pool)
+        .get_u64(keys::PASSWORD_HASH_COST, 65536)
+        .await as u32
+}
+
+// ─── GDPR retention ───────────────────────────────────────────────────────────
+
+pub async fn get_retention_days(state: &AppState) -> i64 {
+    ConfigRepository::new(&state.db.pool)
+        .get_u64("gdpr.retention_days", 365)
+        .await as i64
+}
+
+pub async fn get_audit_retention_days(state: &AppState) -> i64 {
+    ConfigRepository::new(&state.db.pool)
+        .get_u64("gdpr.audit_retention_days", 730)
+        .await as i64
+}
+
+pub async fn get_login_history_retention_days(state: &AppState) -> i64 {
+    ConfigRepository::new(&state.db.pool)
+        .get_u64("gdpr.login_history_retention_days", 90)
+        .await as i64
+}
+
 // ─── Password policy (for backend validation) ─────────────────────────────────
 
 pub async fn password_min_length(state: &AppState) -> usize {
@@ -108,11 +169,6 @@ pub async fn password_min_length(state: &AppState) -> usize {
 
 pub async fn password_policy(state: &AppState) -> PasswordPolicySettings {
     let repo = ConfigRepository::new(&state.db.pool);
-    let _b = |_k: &str, d: bool| -> bool {
-        // Blocking is fine here since this is async context — we call .await
-        // in the returned struct builder below
-        d // placeholder — actual reads below
-    };
     let map = repo.load_public().await.unwrap_or_default();
     let get_bool = |k: &str, d: bool| map.get(k).and_then(|v| v.parse().ok()).unwrap_or(d);
     let get_u32 = |k: &str, d: u32| map.get(k).and_then(|v| v.parse().ok()).unwrap_or(d);
@@ -158,5 +214,59 @@ impl PasswordPolicySettings {
             errors.push("Password must contain at least one special character".to_string());
         }
         errors
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PasswordPolicySettings;
+
+    fn default_policy() -> PasswordPolicySettings {
+        PasswordPolicySettings {
+            min_length: 8,
+            require_uppercase: true,
+            require_lowercase: true,
+            require_number: true,
+            require_special: true,
+        }
+    }
+
+    #[test]
+    fn test_password_policy_validate() {
+        let policy = default_policy();
+
+        assert!(policy.validate("Strong1!a").is_empty());
+
+        let errors = policy.validate("Str1!a");
+        assert!(errors.iter().any(|e| e.contains("at least")));
+
+        let errors = policy.validate("strong1!a");
+        assert!(errors.iter().any(|e| e.contains("uppercase")));
+
+        let errors = policy.validate("STRONG1!A");
+        assert!(errors.iter().any(|e| e.contains("lowercase")));
+
+        let errors = policy.validate("Strong!!a");
+        assert!(errors.iter().any(|e| e.contains("number")));
+
+        let errors = policy.validate("Strong1aB");
+        assert!(errors.iter().any(|e| e.contains("special")));
+
+        let errors = policy.validate("short");
+        assert!(errors.len() >= 3);
+    }
+
+    #[test]
+    fn test_password_policy_lenient() {
+        let policy = PasswordPolicySettings {
+            min_length: 1,
+            require_uppercase: false,
+            require_lowercase: false,
+            require_number: false,
+            require_special: false,
+        };
+
+        assert!(policy.validate("any").is_empty());
+        assert!(policy.validate("a").is_empty());
     }
 }

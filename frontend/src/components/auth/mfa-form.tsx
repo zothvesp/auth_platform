@@ -10,9 +10,11 @@ import {
   pendingMfaLoginKey,
   type PendingMfaLogin,
 } from "@lib/auth-api";
+import { useTranslations } from "@lib/i18n";
 import { AuthLink, AuthShell } from "./auth-shell";
 
 export const MfaForm = () => {
+  const t = useTranslations();
   const router = useRouter();
   const login = useLogin<PendingMfaLogin & { mfaCode: string }>();
   const [pending, setPending] = useState<PendingMfaLogin | null>(null);
@@ -27,9 +29,9 @@ export const MfaForm = () => {
 
   return (
     <AuthShell
-      title="Multi-factor authentication"
-      description="Enter the one-time code from your authenticator app."
-      footer={<AuthLink href="/login">Use a different account</AuthLink>}
+      title={t.auth.mfaTitle}
+      description={t.auth.mfaDesc}
+      footer={<AuthLink href="/login">{t.auth.useDifferentAccount}</AuthLink>}
     >
       <form
         onSubmit={(event) => {
@@ -48,17 +50,17 @@ export const MfaForm = () => {
         <Stack spacing="md">
           {!pending ? (
             <InlineAlert tone="error">
-              Your MFA challenge expired. Return to sign in and try again.
+              {t.auth.mfaExpired}
             </InlineAlert>
           ) : null}
           {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
           {pending ? (
             <Text size="sm" color="dimmed">
-              Completing sign in for {pending.email}.
+              {t.auth.completingMfaFor(pending.email)}
             </Text>
           ) : null}
           <AppTextInput
-            label="Authentication code"
+            label={t.forms.authCode}
             autoComplete="one-time-code"
             inputMode="numeric"
             maxLength={8}

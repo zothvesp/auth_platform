@@ -3,6 +3,7 @@
 import { Group, Modal, Stack, Text } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useTranslations } from "@lib/i18n";
 import { AppButton } from "./button";
 
 type ConfirmDialogTone = "danger" | "warning" | "default";
@@ -27,9 +28,9 @@ const toneColor: Record<ConfirmDialogTone, string> = {
 };
 
 export const ConfirmDialog = ({
-  cancelLabel = "Cancel",
+  cancelLabel,
   children,
-  confirmLabel = "Confirm",
+  confirmLabel,
   loading,
   message,
   onCancel,
@@ -37,27 +38,30 @@ export const ConfirmDialog = ({
   opened,
   title,
   tone = "default",
-}: ConfirmDialogProps) => (
-  <Modal opened={opened} onClose={onCancel} title={title} centered radius="md" size="sm">
-    <Stack spacing="md">
-      <Group align="flex-start" noWrap>
-        <IconAlertTriangle size={22} color={`var(--mantine-color-${toneColor[tone]}-5)`} />
-        <Text size="sm" color="dimmed">
-          {message ?? children}
-        </Text>
-      </Group>
-      <Group position="right" spacing="xs">
-        <AppButton appVariant="secondary" onClick={onCancel}>
-          {cancelLabel}
-        </AppButton>
-        <AppButton
-          appVariant={tone === "danger" ? "danger" : "primary"}
-          loading={loading}
-          onClick={onConfirm}
-        >
-          {confirmLabel}
-        </AppButton>
-      </Group>
-    </Stack>
-  </Modal>
-);
+}: ConfirmDialogProps) => {
+  const t = useTranslations();
+  return (
+    <Modal opened={opened} onClose={onCancel} title={title} centered radius="md" size="sm">
+      <Stack spacing="md">
+        <Group align="flex-start" noWrap>
+          <IconAlertTriangle size={22} color={`var(--mantine-color-${toneColor[tone]}-5)`} />
+          <Text size="sm" color="dimmed">
+            {message ?? children}
+          </Text>
+        </Group>
+        <Group position="right" spacing="xs">
+          <AppButton appVariant="secondary" onClick={onCancel}>
+            {cancelLabel ?? t.common.cancel}
+          </AppButton>
+          <AppButton
+            appVariant={tone === "danger" ? "danger" : "primary"}
+            loading={loading}
+            onClick={onConfirm}
+          >
+            {confirmLabel ?? t.common.confirm}
+          </AppButton>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+};

@@ -24,7 +24,7 @@ impl BaseRepository for UserRepository<'_> {
 
     async fn find_by_id(&self, id: Uuid) -> AppResult<Option<User>> {
         Ok(
-            sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
                 .bind(id)
                 .fetch_optional(self.pool)
                 .await?,
@@ -33,14 +33,15 @@ impl BaseRepository for UserRepository<'_> {
 
     async fn find_all(&self) -> AppResult<Vec<User>> {
         Ok(
-            sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC")
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC")
                 .fetch_all(self.pool)
                 .await?,
         )
     }
 
     async fn delete(&self, id: Uuid) -> AppResult<()> {
-        sqlx::query("DELETE FROM users WHERE id = $1")
+        // Soft delete: set deleted_at instead of hard delete
+        sqlx::query("UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL")
             .bind(id)
             .execute(self.pool)
             .await?;
@@ -51,7 +52,7 @@ impl BaseRepository for UserRepository<'_> {
 impl UserRepository<'_> {
     pub async fn find_by_email(&self, email: &str) -> AppResult<Option<User>> {
         Ok(
-            sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL")
                 .bind(email.to_lowercase())
                 .fetch_optional(self.pool)
                 .await?,
@@ -59,44 +60,81 @@ impl UserRepository<'_> {
     }
 
     pub async fn email_exists(&self, email: &str) -> AppResult<bool> {
-        let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
-            .bind(email.to_lowercase())
-            .fetch_one(self.pool)
-            .await?;
+        let row: (bool,) = sqlx::query_as(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL)",
+        )
+        .bind(email.to_lowercase())
+        .fetch_one(self.pool)
+        .await?;
         Ok(row.0)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn find_paginated(
         &self,
         page: i64,
         page_size: i64,
         status_filter: Option<&str>,
+        search: Option<&str>,
+        role_id: Option<Uuid>,
+        sort_by: &str,
+        sort_dir: &str,
     ) -> AppResult<(Vec<User>, i64)> {
         let offset = (page - 1) * page_size;
-        let (users, total) =
-            if let Some(status) = status_filter {
-                let users = sqlx::query_as::<_, User>(
-                "SELECT * FROM users WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3")
-                .bind(status).bind(page_size).bind(offset).fetch_all(self.pool).await?;
-                let (total,): (i64,) =
-                    sqlx::query_as("SELECT COUNT(*) FROM users WHERE status = $1")
-                        .bind(status)
-                        .fetch_one(self.pool)
-                        .await?;
-                (users, total)
-            } else {
-                let users = sqlx::query_as::<_, User>(
-                    "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-                )
-                .bind(page_size)
-                .bind(offset)
-                .fetch_all(self.pool)
-                .await?;
-                let (total,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-                    .fetch_one(self.pool)
-                    .await?;
-                (users, total)
-            };
+        let search = search
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| format!("%{}%", value));
+
+        let order_clause = match sort_by {
+            "email" => "u.email",
+            "last_login" => "u.last_login_at",
+            _ => "u.created_at",
+        };
+        let dir = if sort_dir.eq_ignore_ascii_case("asc") {
+            "ASC"
+        } else {
+            "DESC"
+        };
+
+        let query = format!(
+            "SELECT DISTINCT u.*
+             FROM users u
+             LEFT JOIN user_roles ur ON ur.user_id = u.id
+             WHERE u.deleted_at IS NULL
+               AND ($1::text IS NULL OR u.status = $1)
+               AND ($2::text IS NULL OR u.email ILIKE $2 OR u.display_name ILIKE $2)
+               AND ($3::uuid IS NULL OR ur.role_id = $3)
+             ORDER BY {} {} NULLS LAST
+             LIMIT $4 OFFSET $5",
+            order_clause, dir
+        );
+
+        let users = sqlx::query_as::<_, User>(&query)
+            .bind(status_filter)
+            .bind(search.as_deref())
+            .bind(role_id)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(self.pool)
+            .await?;
+
+        let count_query =
+            "SELECT COUNT(DISTINCT u.id)
+             FROM users u
+             LEFT JOIN user_roles ur ON ur.user_id = u.id
+             WHERE u.deleted_at IS NULL
+               AND ($1::text IS NULL OR u.status = $1)
+               AND ($2::text IS NULL OR u.email ILIKE $2 OR u.display_name ILIKE $2)
+               AND ($3::uuid IS NULL OR ur.role_id = $3)";
+
+        let (total,): (i64,) = sqlx::query_as(count_query)
+            .bind(status_filter)
+            .bind(search.as_deref())
+            .bind(role_id)
+            .fetch_one(self.pool)
+            .await?;
+
         Ok((users, total))
     }
 
@@ -208,12 +246,14 @@ impl UserRepository<'_> {
         exec: E,
         user_id: Uuid,
         role_id: Uuid,
+        scope: Option<&str>,
     ) -> AppResult<()> {
         sqlx::query(
-            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            "INSERT INTO user_roles (user_id, role_id, scope) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
         )
         .bind(user_id)
         .bind(role_id)
+        .bind(scope)
         .execute(exec)
         .await?;
         Ok(())
@@ -254,5 +294,30 @@ impl UserRepository<'_> {
         .bind(limit)
         .fetch_all(self.pool)
         .await?)
+    }
+
+    pub async fn delete_login_history_by_user<'e, E: sqlx::PgExecutor<'e>>(
+        exec: E,
+        user_id: Uuid,
+    ) -> AppResult<()> {
+        sqlx::query("DELETE FROM login_history WHERE user_id = $1")
+            .bind(user_id)
+            .execute(exec)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_status_by_ids<'e, E: sqlx::PgExecutor<'e>>(
+        exec: E,
+        ids: &[Uuid],
+        status: &str,
+    ) -> AppResult<()> {
+        sqlx::query("UPDATE users SET status = $1, updated_at = $2 WHERE id = ANY($3)")
+            .bind(status)
+            .bind(Utc::now())
+            .bind(ids)
+            .execute(exec)
+            .await?;
+        Ok(())
     }
 }

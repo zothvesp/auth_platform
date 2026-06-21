@@ -73,4 +73,17 @@ impl PermissionRepository<'_> {
             .execute(exec).await?;
         Ok(())
     }
+
+    pub async fn update<'e, E: sqlx::PgExecutor<'e>>(
+        exec: E,
+        id: Uuid,
+        resource: &str,
+        action: &str,
+        description: &str,
+    ) -> AppResult<Permission> {
+        Ok(sqlx::query_as::<_, Permission>(
+            "UPDATE permissions SET resource = $1, action = $2, description = $3 WHERE id = $4 RETURNING *")
+            .bind(resource).bind(action).bind(description).bind(id)
+            .fetch_one(exec).await?)
+    }
 }

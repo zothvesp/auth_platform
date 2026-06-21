@@ -18,19 +18,26 @@ Status legend used below:
 ### Completed Core
 
 - Backend scaffold, Axum routing, SQLx migrations, PostgreSQL schema, seed command, RSA JWT access tokens, refresh-token rotation, logout, email verification, password reset, RBAC tables, role/permission APIs, user profile/admin APIs, and public config endpoints are present.
-- Frontend scaffold, TanStack Router, TanStack Query client, auth store, Axios API client with refresh handling, protected routes, permission gate, login/register/forgot/reset/verify pages, dashboard shell, profile/security pages, and React 19 local dependency setup are present.
+- Frontend scaffold, Next.js App Router + Refine + Mantine 5, TanStack Query client, auth store, fetch API client with refresh handling, protected routes, permission gate, login/register/forgot/reset/verify pages, dashboard shell, profile/security pages, and React 19 local dependency setup are present.
 - Local dev infra exists for PostgreSQL and Redis via Docker Compose.
+- OAuth2 client: Google, GitHub, Microsoft login fully implemented with PKCE, profile fetch, identity upsert.
+- SAML 2.0: AuthnRequest + response parsing implemented (no XML signature verification).
+- MFA: Real TOTP via `totp-rs`, backup codes, enable/disable/verify flows.
+- OIDC Provider: `/.well-known/openid-configuration`, `/oauth/authorize`, `/oauth/token`, `/oauth/userinfo` endpoints.
+- Frontend: Skeleton loading states, i18n with ~130 translatable strings, account linking UI, admin OAuth config UI, shared request helper.
 
 ### Known Gaps
 
-- Frontend TypeScript/build health is currently passing, and route-level code-splitting is enabled for route components.
-- OAuth/OIDC/SAML endpoints are placeholders; they return "not yet implemented".
-- MFA endpoints are placeholders; no real TOTP validation or backup-code flow yet.
-- Admin/dashboard UI pages beyond the shell are mostly not implemented.
-- Users Admin has a table with dedicated edit page, role assignment, and activate/deactivate actions; backend search, delete, and bulk actions are still missing.
-- Shared frontend admin tables now use a TanStack Table-backed `DataTable` UI primitive.
-- Audit logging table/API exists, but role/user mutation paths do not consistently write audit events.
+- OAuth callback page exists for social login; OIDC consent page not yet implemented.
+- JWKS endpoint returns empty keys (placeholder).
+- SAML has no XML signature verification.
+- No CSP headers, CSRF protection, or dependency audit in CI.
+- `backend/src/services/auth.rs` is too broad — should split JWT, password, email, rate-limiting into separate modules.
+- Audit logging table exists but mutations don't consistently write audit events.
+- Rate limiting only covers login — no per-IP or per-route middleware.
 - Docker Compose runs infra only, not backend/frontend app containers.
+- No backend tests (only 2 MFA unit tests), no frontend tests, no E2E tests.
+- No OpenAPI spec or API documentation.
 
 ### Backend Engineering Audit
 
@@ -44,13 +51,15 @@ Backend is mostly aligned with GRASP/KISS:
 
 Main backend issues to track:
 
-- `backend/src/services/auth.rs` is getting too broad: password hashing, JWT, refresh tokens, email verification, password reset, and rate limiting are all accumulating there.
-- `backend/src/routes/admin.rs` now uses a typed user update DTO; keep new admin mutations typed as they are added.
-- OAuth and MFA are stubs, so keep them isolated until implemented.
+- `backend/src/services/auth.rs` is getting too broad: password hashing, JWT, refresh tokens, email verification, password reset, rate limiting, and OIDC token issuance are all accumulating there. Should be split into focused modules.
+- `backend/src/routes/admin.rs` uses typed user update DTOs; keep new admin mutations typed.
+- OAuth client, SAML, and MFA are implemented — keep them isolated as they mature.
+- OIDC Provider JWKS needs real RSA key parsing.
+- Audit logging needs to be wired into mutation paths.
 
 ### Next Task
 
-**Build role detail/editing.** Users Admin now supports role assignment from the dedicated edit route, and Roles Admin has a read-only table. The next focused step is role detail/editing with permission management.
+**Wire audit logging into mutations** — the `audit_logs` table and `AuditRepository::create` exist, but no service method writes events during role/user mutations. After that, focus on CSP headers, CSRF protection, and backend tests.
 
 ## Project Overview
 
@@ -96,14 +105,14 @@ AuthForge is a production-ready authentication and identity management platform 
 
 | # | Task | Description | Priority | Effort | Status |
 |---|------|-------------|----------|--------|--------|
-| 3.1 | OAuth2 Framework | Generic OAuth2 client abstraction; state param; PKCE support | 🔴 Critical | L | 🟨 Partial |
-| 3.2 | Google OAuth | `GET /auth/oauth/google` + callback; user upsert | 🟡 High | M | ⬜ Todo |
-| 3.3 | GitHub OAuth | `GET /auth/oauth/github` + callback | 🟡 High | M | ⬜ Todo |
-| 3.4 | Microsoft/Azure AD | `GET /auth/oauth/microsoft` + callback; tenant config | 🟡 High | L | ⬜ Todo |
-| 3.5 | OIDC/SSO Provider | OpenID Connect discovery; `/.well-known/openid-configuration` | 🟡 High | L | ⬜ Todo |
-| 3.6 | SAML 2.0 SP | Service Provider impl; assertion parsing; `samael` crate | 🟢 Medium | XL | ⬜ Todo |
+| 3.1 | OAuth2 Framework | Generic OAuth2 client abstraction; state param; PKCE support | 🔴 Critical | L | ✅ Done |
+| 3.2 | Google OAuth | `GET /auth/oauth/google` + callback; user upsert | 🟡 High | M | ✅ Done |
+| 3.3 | GitHub OAuth | `GET /auth/oauth/github` + callback | 🟡 High | M | ✅ Done |
+| 3.4 | Microsoft/Azure AD | `GET /auth/oauth/microsoft` + callback; tenant config | 🟡 High | L | ✅ Done |
+| 3.5 | OIDC/SSO Provider | OpenID Connect discovery; `/.well-known/openid-configuration` | 🟡 High | L | 🟨 Partial (JWKS placeholder) |
+| 3.6 | SAML 2.0 SP | Service Provider impl; assertion parsing | 🟢 Medium | XL | 🟨 Partial (no XML signature verification) |
 | 3.7 | SAML IdP Metadata | `GET /auth/saml/metadata`; XML generation | 🟢 Medium | M | ⬜ Todo |
-| 3.8 | OAuth App Management | CRUD for OAuth apps; client_id/secret generation | 🟢 Medium | L | ⬜ Todo |
+| 3.8 | OAuth App Management | CRUD for OAuth apps; client_id/secret generation | 🟢 Medium | L | 🟨 Partial (DB + repo exist, no admin UI) |
 | 3.9 | Token Introspection | `POST /oauth/introspect`; RFC 7662 compliance | 🟢 Medium | M | ⬜ Todo |
 | 3.10 | Token Revocation | `POST /oauth/revoke`; RFC 7009 compliance | 🟢 Medium | S | ⬜ Todo |
 
@@ -137,26 +146,28 @@ AuthForge is a production-ready authentication and identity management platform 
 | 5.3 | User Search | `GET /admin/users?q=&role=&status=`; full-text search | 🟡 High | M | 🟨 Partial |
 | 5.4 | Account Deactivation | Soft delete; `PATCH /admin/users/:id/deactivate` | 🟡 High | S | ✅ Done |
 | 5.5 | Account Deletion | GDPR-compliant hard delete with data scrub | 🟢 Medium | M | 🟨 Partial |
-| 5.6 | MFA Setup | TOTP via `totp-rs`; `POST /auth/mfa/setup`, `/verify`, `/disable` | 🟢 Medium | XL | 🟨 Partial |
+| 5.6 | MFA Setup | TOTP via `totp-rs`; `POST /auth/mfa/setup`, `/verify`, `/disable` | 🟢 Medium | XL | ✅ Done |
 | 5.7 | Backup Codes | Generate + validate one-time backup codes for MFA recovery | 🟢 Medium | M | ⬜ Todo |
 | 5.8 | Activity Log | Login history, IP, device info per user | 🟢 Medium | M | 🟨 Partial |
 
 ---
 
-## Phase 6 — Frontend Architecture (React + TanStack)
+## Phase 6 — Frontend Architecture (React + Next.js)
 
 | # | Task | Description | Priority | Effort | Status |
 |---|------|-------------|----------|--------|--------|
-| 6.1 | TanStack Router Setup | File-based routing; route tree; lazy loading | 🔴 Critical | M | ✅ Done |
+| 6.1 | Next.js App Router Setup | File-based routing via App Router; route groups; lazy loading | 🔴 Critical | M | ✅ Done |
 | 6.2 | TanStack Query Setup | QueryClient config; devtools; error boundaries | 🔴 Critical | S | 🟨 Partial |
-| 6.3 | Auth Store | Zustand store: user, tokens, permissions; hydrate from storage | 🔴 Critical | M | 🟨 Partial |
-| 6.4 | API Client | Axios/fetch wrapper; auto token attach; 401 interceptor; refresh flow | 🔴 Critical | L | ✅ Done |
-| 6.5 | Protected Route | `beforeLoad` guard; redirect to `/login` with `redirect` param | 🔴 Critical | M | ✅ Done |
-| 6.6 | Permission Guard | `<PermissionGate permission="users:write">` HOC + hook | 🔴 Critical | M | ✅ Done |
-| 6.7 | TanStack Form | Form instances for login, register, profile, role forms | 🟡 High | L | 🟨 Partial |
-| 6.8 | TanStack Table | Users table, roles table, audit logs table with sorting/filtering | 🟡 High | L | 🟨 Partial |
+| 6.3 | Auth Store | Cookie-based session; auth provider via Refine | 🔴 Critical | M | ✅ Done |
+| 6.4 | API Client | Fetch wrapper with auto token attach; 401 interceptor | 🔴 Critical | L | ✅ Done |
+| 6.5 | Protected Route | Refine `Authenticated` wrapper; redirect to `/login` | 🔴 Critical | M | ✅ Done |
+| 6.6 | Permission Guard | `<PermissionGate>` HOC + `usePermission` hook | 🔴 Critical | M | ✅ Done |
+| 6.7 | Forms | Refine + Mantine form integration | 🟡 High | L | ✅ Done |
+| 6.8 | Tables | Refine + TanStack Table via `DataTable` component | 🟡 High | L | ✅ Done |
 | 6.9 | Error Boundary | Global + route-level error boundaries with fallback UI | 🟡 High | M | ⬜ Todo |
-| 6.10 | Toast/Notification | Global notification system for auth events | 🟡 High | S | 🟨 Partial |
+| 6.10 | Toast/Notification | Mantine notifications for auth events | 🟡 High | S | ✅ Done |
+| 6.11 | Skeleton Loading | Skeleton placeholders replacing spinners on all pages | 🟡 High | M | ✅ Done |
+| 6.12 | i18n | Translations file + `useTranslations` hook; ~130 strings | 🟡 High | L | ✅ Done |
 
 ---
 
@@ -169,7 +180,7 @@ AuthForge is a production-ready authentication and identity management platform 
 | 7.3 | Forgot Password | Email submission page | 🔴 Critical | S | ✅ Done |
 | 7.4 | Reset Password | Token-verified new password form | 🔴 Critical | S | 🟨 Partial |
 | 7.5 | Email Verification | Verify page + resend option | 🟡 High | S | 🟨 Partial |
-| 7.6 | OAuth Callback | Handle provider redirects; exchange code; store tokens | 🔴 Critical | M | 🟨 Partial |
+| 7.6 | OAuth Callback | Handle provider redirects; exchange code; store tokens | 🔴 Critical | M | ✅ Done |
 | 7.7 | SSO Login | Enterprise SSO entry; domain-based provider discovery | 🟡 High | M | ⬜ Todo |
 | 7.8 | MFA Prompt | TOTP code entry page; backup code fallback | 🟢 Medium | M | ⬜ Todo |
 | 7.9 | Session Expired | Auto-redirect with session expiry notification | 🟡 High | S | 🟨 Partial |
@@ -238,16 +249,15 @@ AuthForge is a production-ready authentication and identity management platform 
 
 ---
 
-## TanStack Library Usage Map
+## Library Usage Map
 
 | Library | Where Used | Purpose |
 |---------|------------|---------|
-| **TanStack Router** | All pages | File-based routing, protected routes, search params |
-| **TanStack Query** | All data fetching | Server state, caching, background refresh, optimistic updates |
-| **TanStack Table** | Users, Roles, Audit pages | Sorting, filtering, pagination, row selection |
-| **TanStack Form** | Login, Register, Profile, Role forms | Validation, field-level errors, async submission |
-| **TanStack Virtual** | Long permission lists, audit logs | Virtualized scrolling for large datasets |
-| **TanStack Store** | Auth state, UI state | Reactive global state without React context |
+| **Refine** | All pages | Auth provider, data provider, routing, CRUD hooks |
+| **Mantine 5** | All UI | Components, styling, notifications, forms |
+| **TanStack Table** | Users, Roles, Audit, Settings tables | Sorting, filtering, pagination, row selection |
+| **TanStack Query** | Via Refine | Server state, caching, background refresh |
+| **Next.js App Router** | All routes | File-based routing, route groups, layout nesting |
 
 ---
 
@@ -256,9 +266,10 @@ AuthForge is a production-ready authentication and identity management platform 
 ```sql
 users, sessions, refresh_tokens,
 email_verification_tokens, password_reset_tokens,
-oauth_accounts, oauth_apps,
+oauth_accounts, oauth_apps, authorization_codes,
 roles, permissions, role_permissions, user_roles,
-audit_logs, mfa_configs, backup_codes, login_history
+audit_logs, mfa_configs, backup_codes, login_history,
+saml_providers, system_config
 ```
 
 ---

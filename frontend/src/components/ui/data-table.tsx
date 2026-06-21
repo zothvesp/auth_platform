@@ -31,6 +31,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useMemo, useState, type ReactNode } from "react";
+import { useTranslations } from "@lib/i18n";
 import { AppButton } from "./button";
 import { BulkActionBar } from "./bulk-action-bar";
 import { EmptyState } from "./state";
@@ -60,7 +61,7 @@ const pageSizeOptions = ["10", "20", "30", "50", "100"];
 export function DataTable<TData extends object>({
   columns,
   data,
-  emptyText = "No records found",
+  emptyText,
   enableColumnFilters = true,
   enableColumnVisibility = true,
   enableGlobalFilter = true,
@@ -73,6 +74,7 @@ export function DataTable<TData extends object>({
   toolbarLeft,
   toolbarRight,
 }: DataTableProps<TData>) {
+  const t = useTranslations();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -92,7 +94,7 @@ export function DataTable<TData extends object>({
             enableSorting: false,
             header: ({ table }) => (
               <Checkbox
-                aria-label="Select all rows"
+                aria-label={t.common.selectAllRows}
                 checked={table.getIsAllPageRowsSelected()}
                 indeterminate={table.getIsSomePageRowsSelected()}
                 onChange={table.getToggleAllPageRowsSelectedHandler()}
@@ -100,7 +102,7 @@ export function DataTable<TData extends object>({
             ),
             cell: ({ row }) => (
               <Checkbox
-                aria-label="Select row"
+                aria-label={t.common.selectRow}
                 checked={row.getIsSelected()}
                 disabled={!row.getCanSelect()}
                 indeterminate={row.getIsSomeSelected()}
@@ -128,7 +130,7 @@ export function DataTable<TData extends object>({
       : [];
 
     return [...selectionColumn, ...columns, ...actionColumn];
-  }, [columns, enableRowSelection, renderRowActions]);
+  }, [columns, enableRowSelection, renderRowActions, t]);
 
   const table = useReactTable({
     data,
@@ -176,7 +178,7 @@ export function DataTable<TData extends object>({
               {toolbarLeft}
               {enableGlobalFilter ? (
                 <SearchInput
-                  placeholder="Search records"
+                  placeholder={t.common.search}
                   value={globalFilter ?? ""}
                   onChange={setGlobalFilter}
                   w={260}
@@ -203,7 +205,7 @@ export function DataTable<TData extends object>({
                       icon={<IconColumns size={15} />}
                       rightIcon={<IconChevronDown size={14} />}
                     >
-                      Columns
+                      {t.common.columns}
                     </AppButton>
                   </Menu.Target>
                   <Menu.Dropdown>
@@ -294,7 +296,7 @@ export function DataTable<TData extends object>({
             ) : (
               <tr>
                 <td colSpan={visibleColumnCount}>
-                  <EmptyState title={emptyText} description="No matching records are available." />
+                  <EmptyState title={emptyText ?? t.common.noRecordsFound} description={t.common.noMatchingRecords} />
                 </td>
               </tr>
             )}
@@ -306,7 +308,7 @@ export function DataTable<TData extends object>({
         <Box px="md" py="sm" sx={(theme) => ({ borderTop: `1px solid ${theme.colors.dark[4]}` })}>
           <Group position="apart">
             <Text size="xs" color="dimmed">
-              Showing {rows.length} of {table.getFilteredRowModel().rows.length} records
+              {t.common.showingOf(rows.length, table.getFilteredRowModel().rows.length)}
             </Text>
             <Group spacing="xs">
               <Select
@@ -315,10 +317,10 @@ export function DataTable<TData extends object>({
                 w={118}
                 value={String(table.getState().pagination.pageSize)}
                 onChange={(value) => table.setPageSize(Number(value ?? initialPageSize))}
-                data={pageSizeOptions.map((value) => ({
-                  value,
-                  label: `${value} / page`,
-                }))}
+                  data={pageSizeOptions.map((value) => ({
+                    value,
+                    label: t.common.perPage(Number(value)),
+                  }))}
               />
               <Pagination
                 size="sm"

@@ -6,10 +6,9 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    error::{AppError, AppResult},
+    error::AppResult,
     middleware::auth::AuthUser,
-    repositories::ConfigRepository,
-    services,
+    services::{self, config},
     state::AppState,
 };
 
@@ -39,7 +38,7 @@ pub async fn list_all_config(
     auth: AuthUser,
 ) -> AppResult<impl axum::response::IntoResponse> {
     auth.require_permission("settings:manage")?;
-    let rows = ConfigRepository::new(&state.db.pool).load_all().await?;
+    let rows = config::list_all_config(&state).await?;
     Ok(Json(rows))
 }
 
@@ -57,27 +56,6 @@ pub async fn update_config(
     Json(payload): Json<UpdateConfigRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
     auth.require_permission("settings:manage")?;
-
-    // Safety: block setting secret values via the API
-    const BLOCKED_KEYS: &[&str] = &[
-        "jwt_private_key",
-        "jwt_public_key",
-        "smtp_password",
-        "google_client_secret",
-        "github_client_secret",
-        "microsoft_client_secret",
-    ];
-    if BLOCKED_KEYS.iter().any(|k| key.contains(k)) {
-        return Err(AppError::Forbidden);
-    }
-
-    ConfigRepository::set(&state.db.pool, &key, &payload.value).await?;
-
-    // Return the updated row for optimistic UI update
-    let value = ConfigRepository::new(&state.db.pool)
-        .get(&key)
-        .await?
-        .ok_or_else(|| AppError::NotFound("config key".to_string()))?;
-
+    let value = config::update_config(&state, &key, &payload.value).await?;
     Ok(Json(serde_json::json!({ "key": key, "value": value })))
 }

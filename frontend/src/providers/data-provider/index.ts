@@ -9,10 +9,10 @@ import type {
   GetOneParams,
   UpdateParams,
 } from "@refinedev/core";
-import Cookies from "js-cookie";
-import { API_URL, authSessionCookieName, decodeSession } from "@lib/auth-api";
+import { API_URL } from "@lib/auth-api";
+import { apiRequest } from "@lib/request";
 
-type BackendResource = "audit_logs" | "permissions" | "roles" | "settings" | "users";
+type BackendResource = "audit_logs" | "oauth_apps" | "permissions" | "roles" | "settings" | "users";
 
 type PaginatedPayload<T> = {
   data: T[];
@@ -24,6 +24,7 @@ type PaginatedPayload<T> = {
 
 const resourcePath: Record<BackendResource, string> = {
   audit_logs: "/admin/audit-logs",
+  oauth_apps: "/admin/oauth-apps",
   permissions: "/permissions",
   roles: "/roles",
   settings: "/config",
@@ -33,12 +34,10 @@ const resourcePath: Record<BackendResource, string> = {
 const isBackendResource = (resource: string): resource is BackendResource =>
   resource in resourcePath;
 
-const getToken = () => decodeSession(Cookies.get(authSessionCookieName))?.tokens.accessToken;
-
-const toQueryString = (params: Record<string, string | number | undefined>) => {
+const toQueryString = (params: Record<string, string | number | undefined | null>) => {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") search.set(key, String(value));
+    if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
   });
   const query = search.toString();
   return query ? `?${query}` : "";
@@ -47,36 +46,6 @@ const toQueryString = (params: Record<string, string | number | undefined>) => {
 const getFilterValue = (params: GetListParams, field: string) => {
   const filter = params.filters?.find((item) => "field" in item && item.field === field);
   return filter && "value" in filter ? filter.value : undefined;
-};
-
-const request = async <T>(path: string, init: RequestInit = {}) => {
-  const token = getToken();
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
-    },
-  });
-
-  if (!response.ok) {
-    let message = response.statusText || "Request failed";
-    try {
-      const payload = await response.json();
-      message = payload.message ?? payload.error ?? message;
-    } catch {
-      // Keep status text.
-    }
-    throw {
-      message,
-      statusCode: response.status,
-    };
-  }
-
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
 };
 
 const listPath = (resource: BackendResource, params: GetListParams) => {
@@ -88,6 +57,8 @@ const listPath = (resource: BackendResource, params: GetListParams) => {
     return `${resourcePath.users}${toQueryString({
       page: currentPage,
       page_size: pageSize,
+      q: getFilterValue(params, "q"),
+      role_id: getFilterValue(params, "role_id"),
       status: getFilterValue(params, "status"),
     })}`;
   }
@@ -111,7 +82,7 @@ export const dataProvider: DataProvider = {
       return { data: [], total: 0 };
     }
 
-    const payload = await request<TData[] | PaginatedPayload<TData>>(
+    const payload = await apiRequest<TData[] | PaginatedPayload<TData>>(
       listPath(params.resource, params),
     );
 
@@ -145,14 +116,14 @@ export const dataProvider: DataProvider = {
     }
 
     if (resource === "settings") {
-      const rows = await request<TData[]>(resourcePath.settings);
+      const rows = await apiRequest<TData[]>(resourcePath.settings);
       const data = rows.find((row) => String(row.key ?? row.id) === String(id));
       if (!data) throw { message: "Setting not found", statusCode: 404 };
       return { data };
     }
 
     return {
-      data: await request<TData>(`${resourcePath[resource]}/${id}`),
+      data: await apiRequest<TData>(`${resourcePath[resource]}/${id}`),
     };
   },
 
@@ -165,7 +136,7 @@ export const dataProvider: DataProvider = {
     }
 
     return {
-      data: await request<TData>(resourcePath[resource], {
+      data: await apiRequest<TData>(resourcePath[resource], {
         method: "POST",
         body: JSON.stringify(variables),
       }),
@@ -184,7 +155,7 @@ export const dataProvider: DataProvider = {
     const path = resource === "settings" ? `/config/${id}` : `${resourcePath[resource]}/${id}`;
 
     return {
-      data: await request<TData>(path, {
+      data: await apiRequest<TData>(path, {
         method: "PUT",
         body: JSON.stringify(variables),
       }),
@@ -199,7 +170,7 @@ export const dataProvider: DataProvider = {
       throw { message: `Unknown resource: ${resource}`, statusCode: 404 };
     }
 
-    await request<void>(`${resourcePath[resource]}/${id}`, { method: "DELETE" });
+    await apiRequest<void>(`${resourcePath[resource]}/${id}`, { method: "DELETE" });
     return { data: { id } as TData };
   },
 };

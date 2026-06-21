@@ -1,3 +1,5 @@
+import { apiRequest } from "./request";
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8080/api/v1";
 
@@ -32,23 +34,19 @@ export type AuthSession = {
   user: AuthUser;
 };
 
-type RequestOptions = {
-  body?: unknown;
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  token?: string;
+export type PublicConfig = {
+  features: {
+    allow_registration: boolean;
+    mfa_enabled: boolean;
+    oauth_github: boolean;
+    oauth_google: boolean;
+    oauth_microsoft: boolean;
+    require_email_verification: boolean;
+    saml_enabled: boolean;
+  };
 };
 
-export class AuthApiError extends Error {
-  code: string;
-  status: number;
-
-  constructor(message: string, status: number, code = "AUTH_ERROR") {
-    super(message);
-    this.name = "AuthApiError";
-    this.code = code;
-    this.status = status;
-  }
-}
+export { ApiError as AuthApiError } from "./request";
 
 export type PendingMfaLogin = {
   email: string;
@@ -59,71 +57,59 @@ export type PendingMfaLogin = {
 
 export const pendingMfaLoginKey = "auth_pending_mfa";
 
-const authRequest = async <T>(path: string, options: RequestOptions = {}) => {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: options.method ?? "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (!response.ok) {
-    let message = "Request failed";
-    let code = `HTTP_${response.status}`;
-
-    try {
-      const payload = await response.json();
-      message = payload.message ?? payload.error ?? message;
-      code = payload.code ?? code;
-    } catch {
-      message = response.statusText || message;
-    }
-
-    throw new AuthApiError(message, response.status, code);
-  }
-
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-};
-
 export const authApi = {
+  getPublicConfig: () =>
+    apiRequest<PublicConfig>("/config/public", { method: "GET" }),
+
   forgotPassword: (email: string) =>
-    authRequest<{ message: string }>("/auth/forgot-password", {
-      body: { email },
-    }),
+    apiRequest<{ message: string }>("/auth/forgot-password", { method: "POST", body: { email } }),
 
   login: (body: {
     email: string;
     mfaCode?: string;
     password: string;
     rememberMe?: boolean;
-  }) => authRequest<AuthSession>("/auth/login", { body }),
+  }) => apiRequest<AuthSession>("/auth/login", { method: "POST", body }),
+
+  oauthCallback: (provider: string, body: { code: string; state: string }) =>
+    apiRequest<AuthSession>(`/auth/oauth/${encodeURIComponent(provider)}/callback`, { method: "POST", body }),
+
+  oauthStart: (provider: string) =>
+    apiRequest<{ url: string }>(`/auth/oauth/${encodeURIComponent(provider)}`, { method: "GET" }),
 
   logout: (token?: string) =>
-    authRequest<void>("/auth/logout", {
-      method: "POST",
-      token,
-    }),
+    apiRequest<void>("/auth/logout", { method: "POST", token }),
 
   register: (body: { displayName: string; email: string; password: string }) =>
-    authRequest<AuthSession>("/auth/register", { body }),
+    apiRequest<AuthSession>("/auth/register", { method: "POST", body }),
 
   resendVerification: (token: string) =>
-    authRequest<{ message: string }>("/auth/resend-verification", {
-      body: {},
-      token,
-    }),
+    apiRequest<{ message: string }>("/auth/resend-verification", { method: "POST", body: {}, token }),
 
   resetPassword: (body: { password: string; token: string }) =>
-    authRequest<{ message: string }>("/auth/reset-password", { body }),
+    apiRequest<{ message: string }>("/auth/reset-password", { method: "POST", body }),
 
   verifyEmail: (token: string) =>
-    authRequest<{ message: string }>(`/auth/verify/${encodeURIComponent(token)}`, {
-      method: "GET",
+    apiRequest<{ message: string }>(`/auth/verify/${encodeURIComponent(token)}`, { method: "GET" }),
+};
+
+export type LinkedAccount = {
+  provider: string;
+  providerEmail?: string;
+  createdAt: string;
+};
+
+export const oauthApi = {
+  getLinkedAccounts: () =>
+    apiRequest<LinkedAccount[]>("/users/me/oauth-accounts", { method: "GET" }),
+
+  unlinkAccount: (provider: string) =>
+    apiRequest<void>(`/users/me/oauth-accounts/${encodeURIComponent(provider)}`, {
+      method: "DELETE",
     }),
+
+  linkStart: (provider: string) =>
+    apiRequest<{ url: string }>(`/auth/oauth/${encodeURIComponent(provider)}`, { method: "GET" }),
 };
 
 export const authSessionCookieName = "auth_session";

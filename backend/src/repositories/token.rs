@@ -96,6 +96,26 @@ impl RefreshTokenRepository<'_> {
             .await?;
         Ok(())
     }
+    pub async fn revoke_family_for_user<'e, E: sqlx::PgExecutor<'e>>(
+        exec: E,
+        family: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<()> {
+        sqlx::query("DELETE FROM refresh_tokens WHERE family = $1 AND user_id = $2")
+            .bind(family)
+            .bind(user_id)
+            .execute(exec)
+            .await?;
+        Ok(())
+    }
+    pub async fn family_by_hash(&self, token_hash: &str) -> AppResult<Option<Uuid>> {
+        let row: Option<(Uuid,)> =
+            sqlx::query_as("SELECT family FROM refresh_tokens WHERE token_hash = $1")
+                .bind(token_hash)
+                .fetch_optional(self.pool)
+                .await?;
+        Ok(row.map(|(family,)| family))
+    }
     pub async fn delete_by_user<'e, E: sqlx::PgExecutor<'e>>(
         exec: E,
         user_id: Uuid,

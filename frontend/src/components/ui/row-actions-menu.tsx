@@ -9,6 +9,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useTranslations } from "@lib/i18n";
 import { AppIconButton } from "./icon-button";
 
 export type RowAction = {
@@ -36,6 +37,7 @@ export const RowActionsMenu = ({
   onEdit,
   onView,
 }: RowActionsMenuProps) => {
+  const t = useTranslations();
   const builtIn: RowAction[] = [
     onView ? { icon: <IconEye size={15} />, label: "View", onClick: onView } : null,
     onEdit ? { icon: <IconPencil size={15} />, label: "Edit", onClick: onEdit } : null,
@@ -48,7 +50,7 @@ export const RowActionsMenu = ({
   return (
     <Menu shadow="md" width={180} position="bottom-end">
       <Menu.Target>
-        <AppIconButton label="Row actions" icon={<IconDotsVertical size={16} />} />
+        <AppIconButton label={t.common.rowActions} icon={<IconDotsVertical size={16} />} />
       </Menu.Target>
       <Menu.Dropdown>
         {[...builtIn, ...actions].map((action) => (

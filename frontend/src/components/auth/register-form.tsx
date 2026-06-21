@@ -10,9 +10,11 @@ import {
   PasswordStrengthMeter,
   SaveButton,
 } from "@components/ui";
+import { useTranslations } from "@lib/i18n";
 import { AuthLink, AuthShell } from "./auth-shell";
 
 export const RegisterForm = () => {
+  const t = useTranslations();
   const register = useRegister<{
     displayName: string;
     email: string;
@@ -26,11 +28,11 @@ export const RegisterForm = () => {
 
   return (
     <AuthShell
-      title="Create account"
+      title={t.auth.createAccount}
       description="Registration follows the backend password policy and creates a standard user account."
       footer={
         <>
-          Already have an account? <AuthLink href="/login">Sign in</AuthLink>
+          {t.auth.alreadyHaveAccount} <AuthLink href="/login">{t.auth.signInHere}</AuthLink>
         </>
       }
     >
@@ -43,13 +45,13 @@ export const RegisterForm = () => {
         <Stack spacing="md">
           {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
           <AppTextInput
-            label="Display name"
+            label={t.forms.displayName}
             required
             value={displayName}
             onChange={(event) => setDisplayName(event.currentTarget.value)}
           />
           <AppTextInput
-            label="Email"
+            label={t.forms.email}
             type="email"
             autoComplete="email"
             required
@@ -57,14 +59,14 @@ export const RegisterForm = () => {
             onChange={(event) => setEmail(event.currentTarget.value)}
           />
           <AppPasswordInput
-            label="Password"
+            label={t.forms.password}
             autoComplete="new-password"
             required
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
           />
           <PasswordStrengthMeter value={password} />
-          <SaveButton loading={register.isPending}>Create account</SaveButton>
+          <SaveButton loading={register.isPending}>{t.auth.createAccount}</SaveButton>
         </Stack>
       </form>
     </AuthShell>

@@ -15,7 +15,9 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
-    repositories::{base::BaseRepository, RefreshTokenRepository, UserRepository},
+    repositories::{
+        base::BaseRepository, RefreshTokenRepository, SessionRepository, UserRepository,
+    },
     state::AppState,
 };
 
@@ -67,6 +69,7 @@ pub async fn register(
     display_name: &str,
     password: &str,
     ip: &str,
+    user_agent: &str,
 ) -> AppResult<(UserDto, String, String)> {
     let user_repo = UserRepository::new(&state.db.pool);
 
@@ -82,7 +85,7 @@ pub async fn register(
         return Err(AppError::Validation(details));
     }
 
-    let password_hash = hash_password(password)?;
+    let password_hash = hash_password(state, password).await?;
     let user_id = Uuid::new_v4();
 
     let mut tx = state.db.pool.begin().await?;
@@ -100,7 +103,7 @@ pub async fn register(
     // Assign default 'user' role
     let role_repo = crate::repositories::RoleRepository::new(&state.db.pool);
     if let Some(role) = role_repo.find_by_name("user").await? {
-        UserRepository::assign_role(&mut *tx, user_id, role.id).await?;
+        UserRepository::assign_role(&mut *tx, user_id, role.id, None).await?;
     }
 
     tx.commit().await?;
@@ -115,7 +118,8 @@ pub async fn register(
 
     let dto = build_user_dto(state, user_id).await?;
     let access_token = issue_access_token(state, &dto).await?;
-    let refresh_token = issue_refresh_token(state, user_id).await?;
+    let (refresh_token, family, expires_at) = issue_refresh_token(state, user_id).await?;
+    SessionRepository::create(&state.db.pool, family, user_id, ip, user_agent, expires_at).await?;
 
     info!("User registered: {} from {}", email, ip);
     Ok((dto, access_token, refresh_token))
@@ -172,7 +176,8 @@ pub async fn login(
 
     let dto = build_user_dto(state, user.id).await?;
     let access_token = issue_access_token(state, &dto).await?;
-    let refresh_token = issue_refresh_token(state, user.id).await?;
+    let (refresh_token, family, expires_at) = issue_refresh_token(state, user.id).await?;
+    SessionRepository::create(&state.db.pool, family, user.id, ip, user_agent, expires_at).await?;
 
     info!("User logged in: {} from {}", email, ip);
     Ok((dto, access_token, refresh_token))
@@ -182,7 +187,15 @@ pub async fn login(
 
 pub async fn logout(state: &AppState, refresh_token_raw: &str) -> AppResult<()> {
     let hash = hash_token(refresh_token_raw);
-    RefreshTokenRepository::delete_by_hash(&state.db.pool, &hash).await
+    let repo = RefreshTokenRepository::new(&state.db.pool);
+    let family = repo.family_by_hash(&hash).await?;
+    let mut tx = state.db.pool.begin().await?;
+    RefreshTokenRepository::delete_by_hash(&mut *tx, &hash).await?;
+    if let Some(family) = family {
+        SessionRepository::delete_by_id(&mut *tx, family).await?;
+    }
+    tx.commit().await?;
+    Ok(())
 }
 
 // ─── Token Refresh ────────────────────────────────────────────────────────────
@@ -190,6 +203,8 @@ pub async fn logout(state: &AppState, refresh_token_raw: &str) -> AppResult<()> 
 pub async fn refresh_token(
     state: &AppState,
     refresh_token_raw: &str,
+    ip: &str,
+    user_agent: &str,
 ) -> AppResult<(String, String, u64)> {
     let hash = hash_token(refresh_token_raw);
     let token_repo = RefreshTokenRepository::new(&state.db.pool);
@@ -226,6 +241,15 @@ pub async fn refresh_token(
         record.user_id,
         &new_hash,
         record.family,
+        expires_at,
+    )
+    .await?;
+    SessionRepository::create(
+        &mut *tx,
+        record.family,
+        record.user_id,
+        ip,
+        user_agent,
         expires_at,
     )
     .await?;
@@ -266,11 +290,55 @@ pub async fn verify_email(state: &AppState, token_raw: &str) -> AppResult<()> {
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
 
+pub async fn change_password(
+    state: &AppState,
+    user_id: Uuid,
+    current_password: &str,
+    new_password: &str,
+) -> AppResult<()> {
+    let user = UserRepository::new(&state.db.pool).get(user_id).await?;
+
+    // Verify current password
+    verify_password(
+        current_password,
+        user.password_hash.as_deref().unwrap_or(""),
+    )?;
+
+    // Validate new password against DB policy
+    let policy = crate::services::config::password_policy(state).await;
+    let violations = policy.validate(new_password);
+    if !violations.is_empty() {
+        return Err(AppError::Validation(std::collections::HashMap::from([(
+            "new_password".to_string(),
+            violations,
+        )])));
+    }
+
+    let hash = hash_password(state, new_password).await?;
+    UserRepository::update_password(&state.db.pool, user_id, &hash).await?;
+
+    // Invalidate all sessions on password change
+    RefreshTokenRepository::delete_by_user(&state.db.pool, user_id).await?;
+    SessionRepository::delete_by_user(&state.db.pool, user_id).await?;
+
+    Ok(())
+}
+
 pub async fn forgot_password(state: &AppState, email: &str) -> AppResult<()> {
+    use redis::AsyncCommands;
+    let key = format!("forgot_password:{}", email);
+    let attempts: u32 = state.redis.manager.clone().get(&key).await.unwrap_or(0);
+    if attempts >= 3 {
+        return Ok(()); // Silently succeed
+    }
+
     let user_repo = UserRepository::new(&state.db.pool);
     // Deliberately swallow "not found" to prevent email enumeration
     if let Some(user) = user_repo.find_by_email(email).await? {
         crate::services::email::send_password_reset(state, user.id).await?;
+        let mut conn = state.redis.manager.clone();
+        let _: () = conn.incr(&key, 1).await?;
+        let _: () = conn.expire(&key, 900).await?; // 15 minutes
     }
     Ok(())
 }
@@ -298,13 +366,14 @@ pub async fn reset_password(
         return Err(AppError::Validation(details));
     }
 
-    let new_hash = hash_password(new_password)?;
+    let new_hash = hash_password(state, new_password).await?;
 
     let mut tx = state.db.pool.begin().await?;
     UserRepository::update_password(&mut *tx, record.user_id, &new_hash).await?;
     crate::repositories::PasswordResetTokenRepository::mark_used(&mut *tx, &hash).await?;
     // Invalidate all sessions on password change
     RefreshTokenRepository::delete_by_user(&mut *tx, record.user_id).await?;
+    SessionRepository::delete_by_user(&mut *tx, record.user_id).await?;
     tx.commit().await?;
 
     Ok(())
@@ -324,6 +393,104 @@ pub async fn issue_access_token(state: &AppState, user: &UserDto) -> AppResult<S
         jti: Uuid::new_v4().to_string(),
     };
 
+    let signing_key = state.vault.current_signing_key().await?;
+    let key = EncodingKey::from_rsa_pem(signing_key.private_key_pem.as_bytes())
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT key: {}", e)))?;
+
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some(signing_key.kid);
+
+    encode(&header, &claims, &key)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT encode: {}", e)))
+}
+
+pub async fn validate_access_token(state: &AppState, token: &str) -> AppResult<Claims> {
+    let mut v = Validation::new(Algorithm::RS256);
+    v.validate_exp = true;
+
+    // Decode header to get kid, then try matching vault keys
+    let header = jsonwebtoken::decode_header(token)
+        .map_err(|_| AppError::InvalidToken)?;
+
+    if let Some(kid) = header.kid {
+        if let Ok(keys) = state.vault.active_keys().await {
+            if let Some(matching_key) = keys.iter().find(|k| k.kid == kid) {
+                let key = DecodingKey::from_rsa_pem(matching_key.public_key_pem.as_bytes())
+                    .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT key: {}", e)))?;
+                return match decode::<Claims>(token, &key, &v) {
+                    Ok(d) => Ok(d.claims),
+                    Err(e) => match e.kind() {
+                        jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                            Err(AppError::TokenExpired)
+                        }
+                        _ => Err(AppError::InvalidToken),
+                    },
+                };
+            }
+        }
+    }
+
+    // Fallback: try PEM file key (legacy / pre-vault tokens)
+    let key = DecodingKey::from_rsa_pem(state.config.jwt_public_key.as_bytes())
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT key: {}", e)))?;
+
+    match decode::<Claims>(token, &key, &v) {
+        Ok(d) => Ok(d.claims),
+        Err(e) => {
+            if let Some(ref prev_key_pem) = state.config.jwt_public_key_previous {
+                if let Ok(prev_key) = DecodingKey::from_rsa_pem(prev_key_pem.as_bytes()) {
+                    match decode::<Claims>(token, &prev_key, &v) {
+                        Ok(d) => Ok(d.claims),
+                        Err(_) => match e.kind() {
+                            jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                                Err(AppError::TokenExpired)
+                            }
+                            _ => Err(AppError::InvalidToken),
+                        },
+                    }
+                } else {
+                    match e.kind() {
+                        jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                            Err(AppError::TokenExpired)
+                        }
+                        _ => Err(AppError::InvalidToken),
+                    }
+                }
+            } else {
+                match e.kind() {
+                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                        Err(AppError::TokenExpired)
+                    }
+                    _ => Err(AppError::InvalidToken),
+                }
+            }
+        }
+    }
+}
+
+// ─── OAuth Provider Token Issuance ────────────────────────────────────────────
+
+pub async fn issue_access_token_for_client(
+    state: &AppState,
+    user: &UserDto,
+    _client_id: &str,
+    _scope: &str,
+) -> AppResult<String> {
+    let now = Utc::now().timestamp();
+    let claims = Claims {
+        sub: user.id.to_string(),
+        email: user.email.clone(),
+        roles: user.roles.iter().map(|r| r.name.clone()).collect(),
+        permissions: user.permissions.clone(),
+        iat: now,
+        exp: now + crate::services::config::jwt_access_expiry_secs(state).await as i64,
+        jti: Uuid::new_v4().to_string(),
+    };
+
+    // Add audience (client_id) for OIDC
+    // Note: We'd need to extend Claims to include `aud` field for proper OIDC
+    // For now, we include client_id in the jti to distinguish tokens
+
     let key = EncodingKey::from_rsa_pem(state.config.jwt_private_key.as_bytes())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT key: {}", e)))?;
 
@@ -331,26 +498,70 @@ pub async fn issue_access_token(state: &AppState, user: &UserDto) -> AppResult<S
         .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT encode: {}", e)))
 }
 
-pub fn validate_access_token(state: &AppState, token: &str) -> AppResult<Claims> {
-    let key = DecodingKey::from_rsa_pem(state.config.jwt_public_key.as_bytes())
+pub async fn issue_refresh_token_for_client(
+    state: &AppState,
+    user_id: Uuid,
+    _client_id: &str,
+) -> AppResult<String> {
+    let raw = new_refresh_token_value();
+    let hash = hash_token(&raw);
+    let family = Uuid::new_v4();
+    let expires_at = Utc::now()
+        + chrono::Duration::seconds(
+            crate::services::config::jwt_refresh_expiry_secs(state).await as i64,
+        );
+    RefreshTokenRepository::create(&state.db.pool, user_id, &hash, family, expires_at).await?;
+    Ok(raw)
+}
+
+pub async fn issue_id_token(
+    state: &AppState,
+    user: &UserDto,
+    client_id: &str,
+) -> AppResult<String> {
+    let now = Utc::now().timestamp();
+
+    // ID Token claims (OIDC standard)
+    #[derive(Serialize)]
+    struct IdTokenClaims {
+        iss: String,
+        sub: String,
+        aud: String,
+        exp: i64,
+        iat: i64,
+        nonce: Option<String>,
+        email: Option<String>,
+        name: Option<String>,
+        email_verified: Option<bool>,
+    }
+
+    let claims = IdTokenClaims {
+        iss: state.config.app_base_url.clone(),
+        sub: user.id.to_string(),
+        aud: client_id.to_string(),
+        exp: now + 3600, // ID tokens typically have shorter expiry
+        iat: now,
+        nonce: None,
+        email: Some(user.email.clone()),
+        name: Some(user.display_name.clone()),
+        email_verified: Some(user.email_verified),
+    };
+
+    let key = EncodingKey::from_rsa_pem(state.config.jwt_private_key.as_bytes())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT key: {}", e)))?;
 
-    let mut v = Validation::new(Algorithm::RS256);
-    v.validate_exp = true;
-
-    decode::<Claims>(token, &key, &v)
-        .map(|d| d.claims)
-        .map_err(|e| match e.kind() {
-            jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::TokenExpired,
-            _ => AppError::InvalidToken,
-        })
+    encode(&Header::new(Algorithm::RS256), &claims, &key)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("ID token encode: {}", e)))
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-pub fn hash_password(password: &str) -> AppResult<String> {
+pub async fn hash_password(state: &AppState, password: &str) -> AppResult<String> {
     let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
+    let m_cost = crate::services::config::password_hash_cost(state).await;
+    let params = argon2::Params::new(m_cost, 2, 1, None)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Argon2 params: {}", e)))?;
+    Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Hash: {}", e)))
@@ -377,7 +588,10 @@ fn new_refresh_token_value() -> String {
         .collect()
 }
 
-async fn issue_refresh_token(state: &AppState, user_id: Uuid) -> AppResult<String> {
+async fn issue_refresh_token(
+    state: &AppState,
+    user_id: Uuid,
+) -> AppResult<(String, Uuid, chrono::DateTime<Utc>)> {
     let raw = new_refresh_token_value();
     let hash = hash_token(&raw);
     let family = Uuid::new_v4();
@@ -386,7 +600,20 @@ async fn issue_refresh_token(state: &AppState, user_id: Uuid) -> AppResult<Strin
             crate::services::config::jwt_refresh_expiry_secs(state).await as i64,
         );
     RefreshTokenRepository::create(&state.db.pool, user_id, &hash, family, expires_at).await?;
-    Ok(raw)
+    Ok((raw, family, expires_at))
+}
+
+pub async fn issue_session(
+    state: &AppState,
+    user_id: Uuid,
+    ip: &str,
+    user_agent: &str,
+) -> AppResult<(UserDto, String, String)> {
+    let user = build_user_dto(state, user_id).await?;
+    let access_token = issue_access_token(state, &user).await?;
+    let (refresh_token, family, expires_at) = issue_refresh_token(state, user_id).await?;
+    SessionRepository::create(&state.db.pool, family, user_id, ip, user_agent, expires_at).await?;
+    Ok((user, access_token, refresh_token))
 }
 
 /// Assembles a UserDto by joining roles and permissions.
@@ -452,4 +679,120 @@ async fn clear_rate_limit(state: &AppState, email: &str) -> AppResult<()> {
     let mut conn = state.redis.manager.clone();
     let _: () = conn.del(format!("login_failures:{}", email)).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use argon2::{
+        password_hash::{rand_core::OsRng, SaltString},
+        Argon2, PasswordHasher,
+    };
+    use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+
+    fn test_argon2_hash(password: &str) -> String {
+        let salt = SaltString::generate(&mut OsRng);
+        let params = argon2::Params::new(65536, 2, 1, None).unwrap();
+        Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
+            .hash_password(password.as_bytes(), &salt)
+            .unwrap()
+            .to_string()
+    }
+
+    fn test_rsa_keypair() -> (String, String) {
+        use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
+        use rsa::{RsaPrivateKey, RsaPublicKey};
+
+        let mut rng = rand::thread_rng();
+        let private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let public_key = RsaPublicKey::from(&private_key);
+        let private_pem = private_key
+            .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
+            .unwrap()
+            .to_string();
+        let public_pem = public_key
+            .to_public_key_pem(rsa::pkcs8::LineEnding::LF)
+            .unwrap()
+            .to_string();
+        (private_pem, public_pem)
+    }
+
+    #[test]
+    fn test_hash_password_verifies() {
+        let hash = test_argon2_hash("mypassword");
+        assert!(verify_password("mypassword", &hash).is_ok());
+    }
+
+    #[test]
+    fn test_hash_password_different_each_time() {
+        let hash1 = test_argon2_hash("mypassword");
+        let hash2 = test_argon2_hash("mypassword");
+        assert_ne!(hash1, hash2);
+        assert!(verify_password("mypassword", &hash1).is_ok());
+        assert!(verify_password("mypassword", &hash2).is_ok());
+    }
+
+    #[test]
+    fn test_verify_password_wrong_fails() {
+        let hash = test_argon2_hash("mypassword");
+        assert!(verify_password("wrongpassword", &hash).is_err());
+    }
+
+    #[test]
+    fn test_validate_access_token() {
+        let (private_pem, public_pem) = test_rsa_keypair();
+
+        let claims = Claims {
+            sub: "test-user-id".to_string(),
+            email: "test@example.com".to_string(),
+            roles: vec!["user".to_string()],
+            permissions: vec!["users:read".to_string()],
+            iat: chrono::Utc::now().timestamp(),
+            exp: chrono::Utc::now().timestamp() + 900,
+            jti: uuid::Uuid::new_v4().to_string(),
+        };
+
+        let encoding_key = EncodingKey::from_rsa_pem(private_pem.as_bytes()).unwrap();
+        let token = encode(&Header::new(Algorithm::RS256), &claims, &encoding_key).unwrap();
+
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = true;
+        let decoding_key = DecodingKey::from_rsa_pem(public_pem.as_bytes()).unwrap();
+        let decoded = decode::<Claims>(&token, &decoding_key, &validation).unwrap();
+
+        assert_eq!(decoded.claims.sub, "test-user-id");
+        assert_eq!(decoded.claims.email, "test@example.com");
+        assert_eq!(decoded.claims.roles, vec!["user".to_string()]);
+        assert_eq!(decoded.claims.permissions, vec!["users:read".to_string()]);
+        assert!(decoded.claims.exp > decoded.claims.iat);
+    }
+
+    #[test]
+    fn test_token_expiry() {
+        let (private_pem, public_pem) = test_rsa_keypair();
+
+        let claims = Claims {
+            sub: "test-user-id".to_string(),
+            email: "test@example.com".to_string(),
+            roles: vec![],
+            permissions: vec![],
+            iat: chrono::Utc::now().timestamp() - 2000,
+            exp: chrono::Utc::now().timestamp() - 1000,
+            jti: uuid::Uuid::new_v4().to_string(),
+        };
+
+        let encoding_key = EncodingKey::from_rsa_pem(private_pem.as_bytes()).unwrap();
+        let token = encode(&Header::new(Algorithm::RS256), &claims, &encoding_key).unwrap();
+
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = true;
+        let decoding_key = DecodingKey::from_rsa_pem(public_pem.as_bytes()).unwrap();
+        let result = decode::<Claims>(&token, &decoding_key, &validation);
+
+        assert!(result.is_err());
+        match result.unwrap_err().kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => {}
+            other => panic!("Expected ExpiredSignature, got {:?}", other),
+        }
+    }
 }

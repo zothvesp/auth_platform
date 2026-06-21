@@ -1,6 +1,7 @@
 use crate::{
     config::AppConfig,
     db::{Database, RedisPool},
+    vault::VaultRepository,
 };
 use std::sync::Arc;
 
@@ -11,14 +12,16 @@ pub struct AppState {
     pub db: Database,
     pub redis: RedisPool,
     pub config: Arc<AppConfig>,
+    pub vault: Arc<dyn VaultRepository>,
 }
 
 impl AppState {
-    pub fn new(db: Database, redis: RedisPool, config: AppConfig) -> Self {
+    pub fn new(db: Database, redis: RedisPool, config: AppConfig, vault: Box<dyn VaultRepository>) -> Self {
         Self {
             db,
             redis,
             config: Arc::new(config),
+            vault: Arc::from(vault),
         }
     }
 }

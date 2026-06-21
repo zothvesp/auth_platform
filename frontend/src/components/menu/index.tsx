@@ -20,15 +20,23 @@ import {
   IconDatabase,
   IconLogout,
   IconLockAccess,
+  IconKey,
   IconShield,
+  IconUserCircle,
   IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import type { AuthUser } from "@lib/auth-api";
+import { useTranslations } from "@lib/i18n";
+import { apiRequest } from "@lib/request";
 
 const icons: Record<string, React.ReactNode> = {
   audit_logs: <IconClipboardList size={16} />,
   permissions: <IconLockAccess size={16} />,
+  profile: <IconUserCircle size={16} />,
   roles: <IconShield size={16} />,
+  security: <IconKey size={16} />,
   settings: <IconAdjustments size={16} />,
   users: <IconUsers size={16} />,
 };
@@ -36,6 +44,14 @@ const icons: Record<string, React.ReactNode> = {
 export const Menu = () => {
   const { mutate: logout } = useLogout();
   const { menuItems, selectedKey } = useMenu();
+  const t = useTranslations();
+  const [user, setUser] = useState<AuthUser>();
+
+  useEffect(() => {
+    apiRequest<AuthUser>("/users/me")
+      .then(setUser)
+      .catch(() => {});
+  }, []);
 
   return (
     <Navbar width={{ base: 260 }} p="sm">
@@ -110,14 +126,14 @@ export const Menu = () => {
         <Group position="apart" noWrap>
           <Group spacing="sm" noWrap>
             <Avatar radius="xl" color="cyan" size="sm">
-              SA
+              {user?.displayName?.[0]?.toUpperCase() ?? "U"}
             </Avatar>
             <Box>
               <Text size="xs" weight={600}>
-                Sarah Admin
+                {user?.displayName ?? "Loading..."}
               </Text>
               <Text size={10} color="dimmed">
-                SUPER_ADMIN
+                {user?.roles?.[0]?.name ?? ""}
               </Text>
             </Box>
           </Group>
@@ -129,7 +145,7 @@ export const Menu = () => {
             leftIcon={<IconLogout size={14} />}
             onClick={() => logout()}
           >
-            Logout
+            {t.common.logout}
           </Button>
         </Group>
       </Navbar.Section>

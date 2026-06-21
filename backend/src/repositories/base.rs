@@ -1,23 +1,6 @@
 use crate::error::AppResult;
 use crate::models::base::Entity;
-use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
-
-/// Every repository method that touches the DB accepts this executor type.
-/// It unifies `&PgPool` (auto-commit) and `&mut Transaction<Postgres>` (manual
-/// commit) behind one parameter, enabling transactional composition in services
-/// without a Unit of Work registry.
-///
-/// # Usage in concrete repos
-/// ```rust
-/// pub async fn create<'e, E>(&self, exec: E, ...) -> AppResult<User>
-/// where E: sqlx::PgExecutor<'e>
-/// { ... }
-/// ```
-#[allow(dead_code)]
-pub type Db<'e> = &'e PgPool;
-#[allow(dead_code)]
-pub type Tx<'a> = &'a mut Transaction<'static, Postgres>;
 
 /// Shared read operations every concrete repository provides.
 /// Blanket implementations are intentionally NOT provided — each repo

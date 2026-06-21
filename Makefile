@@ -2,9 +2,10 @@
 # Usage: make <target>
 # Run `make help` to see all targets.
 
-.PHONY: help keys dev dev-backend dev-frontend build build-backend build-frontend \
-        test test-backend test-frontend lint lint-backend lint-frontend \
-        db-up db-down db-migrate db-reset seed clean
+.PHONY: help keys dev dev-backend dev-frontend stop kill-ports build build-backend build-frontend \
+        test test-backend test-frontend test-frontend-e2e lint lint-backend lint-frontend \
+        db-up db-down db-migrate db-reset seed clean \
+        audit audit-backend audit-frontend
 
 # ─── Colours ──────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -30,7 +31,7 @@ help: ## Show this help
 
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
-keys: ## Generate RSA-2048 key pair in backend/keys/ (run once)
+keys: ## Generate RSA-2048 key pair and vault master key (run once)
 	@mkdir -p $(KEYS_DIR)
 	@if [ -f $(KEYS_DIR)/private.pem ]; then \
 		echo "  Keys already exist — delete $(KEYS_DIR)/ to regenerate."; \
@@ -38,6 +39,11 @@ keys: ## Generate RSA-2048 key pair in backend/keys/ (run once)
 		openssl genrsa -out $(KEYS_DIR)/private.pem 2048 2>/dev/null && \
 		openssl rsa -in $(KEYS_DIR)/private.pem -pubout -out $(KEYS_DIR)/public.pem 2>/dev/null && \
 		echo "  $(GREEN)✓$(RESET) Generated $(KEYS_DIR)/private.pem and $(KEYS_DIR)/public.pem"; \
+	fi
+	@if ! grep -q "^VAULT_MASTER_KEY=" $(BACKEND_DIR)/.env 2>/dev/null; then \
+		VAULT_KEY=$$(openssl rand -hex 32) && \
+		echo "VAULT_MASTER_KEY=$$VAULT_KEY" >> $(BACKEND_DIR)/.env && \
+		echo "  $(GREEN)✓$(RESET) Generated VAULT_MASTER_KEY in $(BACKEND_DIR)/.env"; \
 	fi
 
 setup: keys ## Full first-time setup (keys + deps)
@@ -70,7 +76,21 @@ db-reset: ## Drop and recreate the database, re-run migrations + seed
 
 # ─── Development ──────────────────────────────────────────────────────────────
 
-dev: ## Start backend + frontend in parallel (requires tmux or runs sequentially)
+stop: ## Kill all running dev servers (backend + frontend)
+	@echo "  Stopping dev servers..."
+	@for pid in $$(pgrep -x cargo-watch 2>/dev/null); do kill $$pid 2>/dev/null || true; done
+	@for pid in $$(pgrep -x authforge 2>/dev/null); do kill $$pid 2>/dev/null || true; done
+	@for pid in $$(pgrep -f "next-server\|next dev" 2>/dev/null); do kill $$pid 2>/dev/null || true; done
+	@sleep 2
+	@echo "  $(GREEN)✓$(RESET) Dev servers stopped"
+
+kill-ports: ## Kill processes on common dev ports
+	@for port in 3000 3001 3002 3003 3004 3005 8080; do \
+		pid=$$(ss -tlnp 2>/dev/null | grep ":$$port " | grep -oP 'pid=\K[0-9]+' | head -1); \
+		if [ -n "$$pid" ]; then kill $$pid 2>/dev/null || true; echo "  Killed process on port $$port"; fi; \
+	done
+
+dev: stop kill-ports ## Start backend + frontend in parallel (kills existing first)
 	@echo "  Starting backend and frontend..."
 	@$(MAKE) -j2 dev-backend dev-frontend
 
@@ -89,7 +109,7 @@ build-backend: ## Build Rust release binary
 	@echo "  $(GREEN)✓$(RESET) Backend binary: $(BACKEND_DIR)/target/release/authforge"
 
 build-frontend: ## Build frontend for production
-	cd $(FRONTEND_DIR) && npm run build
+	cd $(FRONTEND_DIR) && pnpm build
 	@echo "  $(GREEN)✓$(RESET) Frontend build: $(FRONTEND_DIR)/.next/"
 
 # ─── Test ─────────────────────────────────────────────────────────────────────
@@ -100,7 +120,10 @@ test-backend: ## Run Rust tests
 	cd $(BACKEND_DIR) && cargo test
 
 test-frontend: ## Run frontend type-check
-	cd $(FRONTEND_DIR) && npm run typecheck
+	cd $(FRONTEND_DIR) && pnpm typecheck
+
+test-frontend-e2e: ## Run Playwright E2E tests (requires dev server running)
+	cd $(FRONTEND_DIR) && pnpm test:e2e
 
 # ─── Lint ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +141,16 @@ seed: ## Seed database with default roles, permissions, and demo users
 	@echo "  Seeding database..."
 	cd $(BACKEND_DIR) && cargo run --bin seed
 	@echo "  $(GREEN)✓$(RESET) Seed complete"
+
+# ─── Audit ───────────────────────────────────────────────────────────────
+
+audit: audit-backend audit-frontend ## Run security audit on both backend and frontend
+
+audit-backend: ## Run cargo audit on backend dependencies
+	cd $(BACKEND_DIR) && cargo audit
+
+audit-frontend: ## Run pnpm audit on frontend dependencies
+	cd $(FRONTEND_DIR) && pnpm audit
 
 # ─── Clean ────────────────────────────────────────────────────────────────────
 

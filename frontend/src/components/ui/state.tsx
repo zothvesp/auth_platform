@@ -3,6 +3,7 @@
 import { Alert, Center, Stack, Text, Title } from "@mantine/core";
 import { IconAlertCircle, IconDatabaseOff } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useTranslations } from "@lib/i18n";
 
 type EmptyStateProps = {
   action?: ReactNode;
@@ -13,21 +14,24 @@ type EmptyStateProps = {
 
 export const EmptyState = ({
   action,
-  description = "Try changing filters or creating a new record.",
+  description,
   icon = <IconDatabaseOff size={38} />,
-  title = "No records found",
-}: EmptyStateProps) => (
-  <Center py="xl">
-    <Stack align="center" spacing="xs" maw={420}>
-      {icon}
-      <Title order={4}>{title}</Title>
-      <Text size="sm" color="dimmed" align="center">
-        {description}
-      </Text>
-      {action}
-    </Stack>
-  </Center>
-);
+  title,
+}: EmptyStateProps) => {
+  const t = useTranslations();
+  return (
+    <Center py="xl">
+      <Stack align="center" spacing="xs" maw={420}>
+        {icon}
+        <Title order={4}>{title ?? t.common.noRecordsFound}</Title>
+        <Text size="sm" color="dimmed" align="center">
+          {description ?? t.common.tryChangingFilters}
+        </Text>
+        {action}
+      </Stack>
+    </Center>
+  );
+};
 
 type ErrorStateProps = {
   action?: ReactNode;

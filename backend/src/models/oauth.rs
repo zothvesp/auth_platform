@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 use crate::impl_entity;
 use sqlx::FromRow;
@@ -6,7 +7,7 @@ use uuid::Uuid;
 
 // ─── OAuth Account ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone, FromRow, Serialize)]
 pub struct OAuthAccount {
     pub id: Uuid,
     pub user_id: Uuid,

@@ -1,0 +1,1 @@
+ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS scope TEXT;
