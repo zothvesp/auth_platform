@@ -121,6 +121,67 @@ const ProviderContent = ({ children, emotionCache }: ProviderContentProps) => {
                 },
               }),
             },
+            TextInput: {
+              styles: (theme) => ({
+                input: {
+                  backgroundColor: theme.colors.dark[6],
+                  borderColor: theme.colors.dark[4],
+                  "&:focus": {
+                    borderColor: theme.colors.cyan[6],
+                  },
+                },
+              }),
+            },
+            PasswordInput: {
+              styles: (theme) => ({
+                input: {
+                  backgroundColor: theme.colors.dark[6],
+                  borderColor: theme.colors.dark[4],
+                  "&:focus": {
+                    borderColor: theme.colors.cyan[6],
+                  },
+                },
+              }),
+            },
+            Select: {
+              styles: (theme) => ({
+                input: {
+                  backgroundColor: theme.colors.dark[6],
+                  borderColor: theme.colors.dark[4],
+                  "&:focus": {
+                    borderColor: theme.colors.cyan[6],
+                  },
+                },
+              }),
+            },
+            Textarea: {
+              styles: (theme) => ({
+                input: {
+                  backgroundColor: theme.colors.dark[6],
+                  borderColor: theme.colors.dark[4],
+                  "&:focus": {
+                    borderColor: theme.colors.cyan[6],
+                  },
+                },
+              }),
+            },
+            Badge: {
+              styles: (theme) => ({
+                root: {
+                  fontWeight: 600,
+                },
+              }),
+            },
+            Tabs: {
+              styles: (theme) => ({
+                tab: {
+                  "&[data-active]": {
+                    color: theme.colors.cyan[4],
+                    borderBottomColor: theme.colors.cyan[4],
+                  },
+                },
+              }),
+            },
           },
       }}
     >

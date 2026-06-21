@@ -114,7 +114,10 @@ export default function DashboardHome() {
       </Box>
 
       {/* Stats grid */}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+      <SimpleGrid cols={4} spacing="md" breakpoints={[
+        { maxWidth: "md", cols: 2 },
+        { maxWidth: "sm", cols: 1 },
+      ]}>
         <StatCard
           label="Users"
           value={stats?.users ?? 0}
@@ -146,7 +149,9 @@ export default function DashboardHome() {
         <Text size="sm" weight={600} mb="md">
           System Health
         </Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <SimpleGrid cols={3} spacing="md" breakpoints={[
+          { maxWidth: "sm", cols: 1 },
+        ]}>
           <Group spacing="sm">
             <ThemeIcon
               size={28}
@@ -221,7 +226,9 @@ export default function DashboardHome() {
         <Text size="sm" weight={600} mb="md">
           Quick Actions
         </Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <SimpleGrid cols={3} spacing="md" breakpoints={[
+          { maxWidth: "sm", cols: 1 },
+        ]}>
           <Card
             component="a"
             href="/users/create"
